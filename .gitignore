@@ -1,4 +1,4 @@
-# Python
+# Python cache
 __pycache__/
 *.py[cod]
 *.pyo
@@ -6,26 +6,8 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# Environments
-.venv/
-venv/
-env/
-.env
-.env.*
-
-# Notebooks
+# Notebook cache
 .ipynb_checkpoints/
-
-# Generated artifacts
-datasets/
-models/
-checkpoints/
-runs/
-wandb/
-*.engine
-*.pth
-*.onnx
-*.ckpt
 
 # OS and editor files
 .DS_Store
