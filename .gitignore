@@ -23,6 +23,8 @@ models/
 checkpoints/
 runs/
 outputs/
+wandb/
+*.engine
 *.pt
 *.pth
 *.onnx

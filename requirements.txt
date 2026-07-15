@@ -1,9 +1,10 @@
 numpy
-opencv-python
+opencv
 matplotlib
 pillow
-pykitti            # ¡IMPORTANTE! Para cargar KITTI fácilmente
+pykitti
 scipy
-tqdm               # Para barras de progreso
-ultralytics    # <-- NUEVO: Para descargar y usar el dataset KITTI
-pyyaml         # <-- NUEVO: Para leer archivos .yaml si es necesario
+tqdm
+ultralytics
+pyyaml
+tensorboard

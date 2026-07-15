@@ -1,8 +1,13 @@
-from ultralytics import YOLO
+from pathlib import Path
+import sys
 
-# Load a pretrained YOLO26 model
-model = YOLO("yolo26n.pt")
 
-# Train on kitti dataset
-results = model.train(data="kitti.yaml", epochs=100, imgsz=640)
+ROOT_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT_DIR))
+
+from SpeedrEye import main  # noqa: E402
+
+
+if __name__ == "__main__":
+    main()
 
