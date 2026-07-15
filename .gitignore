@@ -24,6 +24,10 @@ checkpoints/
 runs/
 outputs/
 wandb/
+weights/*
+!weights/.gitkeep
+tensorboard/*
+!tensorboard/.gitkeep
 *.engine
 *.pt
 *.pth

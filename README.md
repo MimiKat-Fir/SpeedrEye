@@ -6,21 +6,27 @@ The current goal is to process images, including fine-tuning work, and finish wi
 
 More requirements, dataset details, model choices, and demo constraints will be added as the project is defined.
 
-## Training
+## Training Notebook
 
-Local environment:
+Use the notebook for training:
+
+- [src/trainColab.ipynb](src/trainColab.ipynb)
+- CPU is forced for now with `device="cpu"`.
+- The first cell runs 1 epoch as a smoke test.
+- Weights are saved under `weights/`.
+- TensorBoard logs are saved under `tensorboard/`.
+
+TensorBoard:
+
+```powershell
+tensorboard --logdir tensorboard
+```
+
+## Check Script
+
+Use `SpeedrEye.py` only to load weights and test a prediction:
 
 ```powershell
 conda activate ai
 python SpeedrEye.py
 ```
-
-The script trains in 10-epoch stages up to 100 epochs. Ultralytics saves weights after each stage under `runs/speedereye/.../weights/`.
-
-TensorBoard:
-
-```powershell
-tensorboard --logdir runs/speedereye
-```
-
-Training is expected to run on Google Colab for GPU access. Keep the dataset close to the training runtime: use local/Drive storage in Colab instead of repeatedly pulling data over the network during training.
