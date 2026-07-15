@@ -10,11 +10,11 @@ More requirements, dataset details, model choices, and demo constraints will be 
 
 Use the notebook for training:
 
-- [src/trainColab.ipynb](src/trainColab.ipynb)
+- [notebooks/train_model.ipynb](notebooks/train_model.ipynb)
 - CPU is forced for now with `device="cpu"`.
 - The first cell runs 1 epoch as a smoke test.
-- Weights are saved under `weights/`.
-- TensorBoard logs are saved under `tensorboard/`.
+- Weights are saved under `weights/` and kept in Git for collaboration.
+- TensorBoard logs are saved under `tensorboard/` and kept in Git for collaboration.
 
 TensorBoard:
 
@@ -30,3 +30,5 @@ Use `SpeedrEye.py` only to load weights and test a prediction:
 conda activate ai
 python SpeedrEye.py
 ```
+
+Put test images or a video in `data/test/`. Prediction outputs are written to `outputs/predict/`.

@@ -1,7 +1,8 @@
 from pathlib import Path
 
 DEFAULT_WEIGHTS = Path("weights") / "speedereye_epoch_001.pt"
-TEST_IMAGE = "test.jpg"
+TEST_SOURCE = Path("data") / "test"
+OUTPUT_DIR = Path("outputs")
 
 
 def main():
@@ -15,13 +16,19 @@ def main():
     model = YOLO(str(DEFAULT_WEIGHTS))
     print(f"Loaded weights: {DEFAULT_WEIGHTS}")
 
-    if Path(TEST_IMAGE).exists():
-        results = model.predict(source=TEST_IMAGE, device="cpu", save=True)
+    if TEST_SOURCE.exists() and any(TEST_SOURCE.iterdir()):
+        results = model.predict(
+            source=str(TEST_SOURCE),
+            device="cpu",
+            project=str(OUTPUT_DIR),
+            name="predict",
+            exist_ok=True,
+            save=True,
+        )
         print(f"Predictions: {len(results)}")
     else:
-        print(f"Put a test image at {TEST_IMAGE} to run a CPU prediction.")
+        print(f"Put test images or a video in {TEST_SOURCE} to run CPU prediction.")
 
 
-if __name__ == "__main__":
-    main()
+main()
 

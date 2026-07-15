@@ -16,20 +16,13 @@ env/
 # Notebooks
 .ipynb_checkpoints/
 
-# Data and model artifacts
-data/
+# Generated artifacts
 datasets/
 models/
 checkpoints/
 runs/
-outputs/
 wandb/
-weights/*
-!weights/.gitkeep
-tensorboard/*
-!tensorboard/.gitkeep
 *.engine
-*.pt
 *.pth
 *.onnx
 *.ckpt
