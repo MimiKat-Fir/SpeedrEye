@@ -14,3 +14,8 @@ __pycache__/
 Thumbs.db
 .vscode/
 .idea/
+
+# Para pruebas locales
+personal2
+.python-version
+.venv
