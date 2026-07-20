@@ -34,8 +34,6 @@ class Detector:
                 'bbox': (x1, y1, x2, y2),
                 'class': cls,
                 'conf': conf,
-                'distance': 0.0,
-                'position_3d': None,
             })
         
         return detections
