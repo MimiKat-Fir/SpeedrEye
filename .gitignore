@@ -23,9 +23,7 @@ data/kitti_filtered/
 data/test/
 
 # Resultados (generados)
-results/training/
-results/experiments/
-results/tensorboard/
+results/*
 
 
 # IDE

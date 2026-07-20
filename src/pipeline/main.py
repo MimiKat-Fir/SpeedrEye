@@ -3,37 +3,13 @@
 SpeedrEye Pipeline - Detección y Distancia en tiempo real
 """
 
-import os
-import sys
-import warnings
-import argparse
+import cv2
 import time
+import argparse
+import sys
 from pathlib import Path
 from collections import deque
 import numpy as np
-
-# 🔥 SILENCIAR TODO
-os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = ""
-os.environ["QT_QPA_PLATFORM"] = ""
-os.environ["OPENCV_OPENCL_DEVICE"] = "disabled"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-
-warnings.filterwarnings("ignore")
-warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
-warnings.filterwarnings("ignore", category=UserWarning, module="PIL")
-warnings.filterwarnings("ignore", category=UserWarning, module="torch")
-
-# Silenciar logs de PyTorch y ultralytics
-import torch
-torch.set_printoptions(precision=2, sci_mode=False)
-
-import cv2
-import logging
-
-# Silenciar logs de ultralytics
-logging.getLogger("ultralytics").setLevel(logging.ERROR)
-
-cv2.ocl.setUseOpenCL(False)
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
