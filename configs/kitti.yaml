@@ -1,17 +1,14 @@
-# KITTI-style YOLO dataset config.
-# Update `path` after placing or mounting the dataset.
-# Do not train `DontCare` as a class; filter those labels during conversion.
-path: ../data/kitti
+
+# SpeedrEye - KITTI Viandantes
+# Clases: ['Pedestrian', 'Cyclist']
+
+path: /run/media/aerok/XtraDisk/Documentos/Academic/SAMIA/SpeedrEye/notebooks/data/kitti_filtered
 train: images/train
 val: images/val
 test: images/test
 
 names:
-  0: Car
-  1: Van
-  2: Truck
-  3: Pedestrian
-  4: Person_sitting
-  5: Cyclist
-  6: Tram
-  7: Misc
+  0: Pedestrian
+  1: Cyclist
+
+nc: 2

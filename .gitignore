@@ -1,21 +1,51 @@
-# Python cache
+# Python
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.onnx
+*.engine
 
-# Notebook cache
-.ipynb_checkpoints/
+# Entorno virtual
+.venv/
+venv/
+ENV/
 
-# OS and editor files
-.DS_Store
-Thumbs.db
+# Datos (grandes)
+data/kitti_raw/
+data/kitti_filtered/
+data/test/
+
+# Resultados (generados)
+results/training/
+results/experiments/
+results/tensorboard/
+
+
+# IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# Para pruebas locales
-personal2
-.python-version
-.venv
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Logs
+*.log
+
+# Backups
+backup_*/
+backup/
+
+# Archivos temporales
+*.tmp
+*.temp

@@ -1,10 +1,28 @@
-numpy
-opencv
-matplotlib
-pillow
-pykitti
-scipy
-tqdm
-ultralytics
-pyyaml
-tensorboard
+# ============================================
+# SpeedrEye - Dependencias
+# ============================================
+
+# YOLO + ultralytics
+ultralytics>=8.0.0
+
+# Visión por computador
+opencv-python>=4.8.0
+
+# Procesamiento numérico y datos
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Gráficos y visualización
+matplotlib>=3.7.0
+Pillow>=10.0.0
+
+# PyTorch (para MiDaS y otros)
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Utilidades
+tqdm>=4.66.0
+pyyaml>=6.0
+
+# TensorBoard (para visualizar logs de entrenamiento)
+tensorboard>=2.13.0
