@@ -3,6 +3,7 @@
 import unittest
 from collections import deque
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
 import torch
@@ -11,7 +12,12 @@ import cv2
 from src.pipeline.main import SpeedrEyePipeline
 from src.pipeline.visualizer import Visualizer
 from src.pipeline.distance.geometry_guided import GeometryGuidedDistanceEstimator
-from src.pipeline.distance.head import DistanceRegressionHead, prepare_distance_inputs
+from src.pipeline.distance.head import (
+    DistanceRegressionHead,
+    file_sha256,
+    load_distance_head,
+    prepare_distance_inputs,
+)
 
 
 class TestConfig:
@@ -57,6 +63,31 @@ class DistanceMethodTests(unittest.TestCase):
 
         self.assertEqual(tuple(prediction.shape), (2,))
         self.assertTrue(torch.isfinite(prediction).all())
+
+    def test_checkpoint_is_portable_and_bound_to_detector(self):
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            detector_path = temp_path / "detector.pt"
+            detector_path.write_bytes(b"detector-v1")
+            head = DistanceRegressionHead(feature_channels=16)
+            checkpoint_path = temp_path / "direct_distance.pt"
+            torch.save(
+                {
+                    "target_mode": "direct",
+                    "feature_channels": 16,
+                    "head_state_dict": head.state_dict(),
+                    "detector_weights": detector_path.name,
+                    "detector_sha256": file_sha256(detector_path),
+                },
+                checkpoint_path,
+            )
+
+            loaded = load_distance_head(checkpoint_path, "direct", detector_path)
+            self.assertEqual(loaded.feature_channels, 16)
+
+            detector_path.write_bytes(b"different-detector")
+            with self.assertRaisesRegex(ValueError, "checksum"):
+                load_distance_head(checkpoint_path, "direct", detector_path)
 
     def test_pipeline_records_distance_and_complete_timings(self):
         class FakeDetector:

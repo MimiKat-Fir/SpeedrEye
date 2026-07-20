@@ -1,5 +1,6 @@
 """Small regression head that reuses feature maps from the YOLO detector."""
 
+import hashlib
 from pathlib import Path
 
 import torch
@@ -91,7 +92,15 @@ def prepare_distance_inputs(detections, original_shape, feature_map, stride):
     return rois, box_features
 
 
-def load_distance_head(checkpoint_path, expected_mode):
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def load_distance_head(checkpoint_path, expected_mode, detector_weights=None):
     path = Path(checkpoint_path)
     if not path.exists():
         raise FileNotFoundError(
@@ -106,6 +115,17 @@ def load_distance_head(checkpoint_path, expected_mode):
     mode = checkpoint.get("target_mode")
     if mode != expected_mode:
         raise ValueError(f"Expected '{expected_mode}' weights, found '{mode}' in {path}")
+
+    expected_detector = checkpoint.get("detector_weights")
+    if detector_weights is not None and expected_detector:
+        detector_path = Path(detector_weights)
+        if detector_path.name != expected_detector:
+            raise ValueError(
+                f"Distance weights require detector '{expected_detector}', found '{detector_path.name}'"
+            )
+        expected_hash = checkpoint.get("detector_sha256")
+        if expected_hash and file_sha256(detector_path) != expected_hash:
+            raise ValueError(f"Detector checksum does not match the distance weights: {detector_path}")
 
     head = DistanceRegressionHead(
         feature_channels=checkpoint["feature_channels"],

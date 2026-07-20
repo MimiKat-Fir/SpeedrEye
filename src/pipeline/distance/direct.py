@@ -9,7 +9,11 @@ class DirectDistanceEstimator:
     def __init__(self, detector, config):
         self.config = config
         self.capture = BackboneFeatureCapture(detector.model.model)
-        self.head = load_distance_head(config.DIRECT_DISTANCE_WEIGHTS, "direct")
+        self.head = load_distance_head(
+            config.DIRECT_DISTANCE_WEIGHTS,
+            "direct",
+            config.YOLO_MODEL_PATH,
+        )
 
     def estimate(self, detections, original_shape):
         if not detections:
@@ -18,6 +22,11 @@ class DirectDistanceEstimator:
             raise RuntimeError("YOLO features were not captured before distance estimation")
 
         feature_map = self.capture.features[0]
+        if feature_map.shape[1] != self.head.feature_channels:
+            raise RuntimeError(
+                f"Distance head expects {self.head.feature_channels} feature channels, "
+                f"but YOLO produced {feature_map.shape[1]}"
+            )
         self.head.to(feature_map.device)
         rois, box_features = prepare_distance_inputs(
             detections,

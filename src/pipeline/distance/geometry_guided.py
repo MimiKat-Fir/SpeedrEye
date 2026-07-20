@@ -15,7 +15,11 @@ class GeometryGuidedDistanceEstimator:
 
         if Path(config.GEOMETRY_DISTANCE_WEIGHTS).exists():
             self.capture = BackboneFeatureCapture(detector.model.model)
-            self.head = load_distance_head(config.GEOMETRY_DISTANCE_WEIGHTS, "geometry_guided")
+            self.head = load_distance_head(
+                config.GEOMETRY_DISTANCE_WEIGHTS,
+                "geometry_guided",
+                config.YOLO_MODEL_PATH,
+            )
 
     def _geometry_distance(self, detection):
         box_height = max(detection["bbox"][3] - detection["bbox"][1], 1)
@@ -34,6 +38,11 @@ class GeometryGuidedDistanceEstimator:
             if not self.capture.features:
                 raise RuntimeError("YOLO features were not captured before distance estimation")
             feature_map = self.capture.features[0]
+            if feature_map.shape[1] != self.head.feature_channels:
+                raise RuntimeError(
+                    f"Distance head expects {self.head.feature_channels} feature channels, "
+                    f"but YOLO produced {feature_map.shape[1]}"
+                )
             self.head.to(feature_map.device)
             rois, box_features = prepare_distance_inputs(
                 detections,

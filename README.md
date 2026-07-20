@@ -33,6 +33,10 @@ The display reports YOLO time, distance-method time, total frame time, and susta
 
 Use [notebooks/train_direct_distance.ipynb](notebooks/train_direct_distance.ipynb).
 
+For the simplest setup, open it directly in Colab:
+
+[Open the direct-distance notebook in Google Colab](https://colab.research.google.com/github/MimiKat-Fir/SpeedrEye/blob/feature/direct-geometry-distance/notebooks/train_direct_distance.ipynb)
+
 The notebook:
 
 1. reads KITTI images, labels, camera calibration, and optional Velodyne files;
@@ -42,7 +46,21 @@ The notebook:
 5. trains a small direct-distance head while keeping the YOLO backbone frozen;
 6. evaluates distance MAE/RMSE and saves the weights under `models/distance/`.
 
-Dataset downloads and full training are disabled by default because they are resource-intensive. Enable them explicitly in the notebook.
+In Colab, the core KITTI files and full training are enabled automatically. The large raw Velodyne archive remains optional through `DOWNLOAD_LIDAR`.
+
+The final artifacts use project-relative paths on every computer:
+
+- `models/distance/direct_distance.pt`: portable direct-distance weights;
+- `models/distance/direct_distance_metrics.json`: validation and compatibility metadata;
+- `tensorboard/direct_distance/<run name>/`: TensorBoard event files.
+
+The notebook downloads a ZIP containing these artifacts. Its final optional cell can commit and push the trained model and TensorBoard run when `PUBLISH_TO_GITHUB = True` and a `GITHUB_TOKEN` Colab secret is configured. After publication, collaborators only need:
+
+```powershell
+git switch feature/direct-geometry-distance
+git pull
+python src/pipeline/main.py --camera --distance-method direct
+```
 
 ## Layout
 
