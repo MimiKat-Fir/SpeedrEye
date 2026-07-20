@@ -8,5 +8,4 @@ from .smart_lidar import SmartLidarGenerator
 from .fusion import Fusion
 from .visualizer import Visualizer
 from .config import Config
-from .camera_calibrator import CameraCalibrator
-from .calibration_visualizer import CalibrationVisualizer
+from .calibration import CameraCalibrator
