@@ -15,11 +15,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline.calibration import CameraCalibrator
 from pipeline.config import Config
 from pipeline.detector import Detector
+from pipeline.distance import build_distance_estimator
 from pipeline.visualizer import Visualizer
 
 
 class SpeedrEyePipeline:
-    def __init__(self, config, video_path=None):
+    def __init__(self, config, video_path=None, distance_method=None):
         self.config = config
         self.fps_buffer = deque(maxlen=config.FPS_BUFFER_SIZE)
         self.frame_count = 0
@@ -34,6 +35,12 @@ class SpeedrEyePipeline:
         config.CY = params["cy"]
 
         self.detector = Detector(config)
+        self.distance_method = distance_method or config.DISTANCE_METHOD
+        self.distance_estimator = build_distance_estimator(
+            self.distance_method,
+            self.detector,
+            config,
+        )
         self.visualizer = Visualizer(config)
 
     def process_frame(self, frame):
@@ -55,6 +62,15 @@ class SpeedrEyePipeline:
                 if (detection["bbox"][1] + detection["bbox"][3]) / 2 > horizon_y
             ]
 
+        start_distance = time.perf_counter()
+        if self.distance_estimator is not None:
+            detections = self.distance_estimator.estimate(detections, frame.shape)
+        distance_time = (time.perf_counter() - start_distance) * 1000
+
+        start_visualization = time.perf_counter()
+        output = self.visualizer.draw(frame, detections)
+        visualization_time = (time.perf_counter() - start_visualization) * 1000
+
         total_time = (time.perf_counter() - start_total) * 1000
         self.fps_buffer.append(1000 / total_time if total_time > 0 else 0)
         self.frame_count += 1
@@ -63,9 +79,13 @@ class SpeedrEyePipeline:
             "fps": np.mean(self.fps_buffer),
             "detections": len(detections),
             "detection_time": detection_time,
+            "distance_time": distance_time,
+            "distance_method": self.distance_method,
+            "visualization_time": visualization_time,
             "total_time": total_time,
         }
-        return self.visualizer.draw(frame, detections, metrics), detections, metrics
+        self.visualizer.draw_ui(output, metrics)
+        return output, detections, metrics
 
     def run_video(self, video_path):
         if isinstance(video_path, str) and not Path(video_path).exists():
@@ -95,10 +115,19 @@ def main():
     parser = argparse.ArgumentParser(description="SpeedrEye object detection")
     parser.add_argument("--video", type=str, help="Ruta al video")
     parser.add_argument("--camera", action="store_true", help="Usar camara")
+    parser.add_argument(
+        "--distance-method",
+        choices=("none", "direct", "geometry"),
+        default=Config.DISTANCE_METHOD,
+    )
     args = parser.parse_args()
 
     source = 0 if args.camera or not args.video else args.video
-    pipeline = SpeedrEyePipeline(Config, video_path=source)
+    pipeline = SpeedrEyePipeline(
+        Config,
+        video_path=source,
+        distance_method=args.distance_method,
+    )
     pipeline.run_video(source)
 
 

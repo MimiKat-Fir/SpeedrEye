@@ -11,9 +11,12 @@ class Visualizer:
         x1, y1, x2, y2 = detection["bbox"]
         class_id = detection["class"]
         confidence = detection["conf"]
+        distance = detection.get("distance")
         color = self.config.CLASS_COLORS.get(class_id, (255, 255, 255))
         label = self.config.CLASS_NAMES.get(class_id, "Objeto")
         text = f"{label} {confidence:.2f}"
+        if distance is not None:
+            text += f" {distance:.1f}m"
 
         cv2.rectangle(
             frame,
@@ -45,6 +48,8 @@ class Visualizer:
             f"FPS: {metrics['fps']:.1f}",
             f"Dets: {metrics['detections']}",
             f"YOLO: {metrics['detection_time']:.0f}ms",
+            f"Distance: {metrics['distance_time']:.1f}ms",
+            f"Draw: {metrics['visualization_time']:.1f}ms",
             f"Total: {metrics['total_time']:.0f}ms",
         )
         for index, text in enumerate(lines):

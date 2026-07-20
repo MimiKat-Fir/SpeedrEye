@@ -18,7 +18,7 @@ class Config:
     CALIBRATION_DIR.mkdir(parents=True, exist_ok=True)
     
     # Modelo YOLO
-    YOLO_MODEL_PATH = str(MODELS_DIR / "yolo" / "yolo26n.pt")
+    YOLO_MODEL_PATH = str(MODELS_DIR / "yolo" / "speedreye_best.pt")
     
     # ============================================
     # YOLO
@@ -38,6 +38,17 @@ class Config:
     FOCAL_LENGTH = 700.0
     CX = None
     CY = None
+
+    # Distancia
+    DISTANCE_METHOD = "geometry"
+    DIRECT_DISTANCE_WEIGHTS = MODELS_DIR / "distance" / "direct_distance.pt"
+    GEOMETRY_DISTANCE_WEIGHTS = MODELS_DIR / "distance" / "geometry_guided.pt"
+    CLASS_HEIGHTS = {
+        0: 1.70,  # Peaton
+        1: 1.70,  # Ciclista con bicicleta
+    }
+    MIN_DISTANCE = 0.5
+    MAX_DISTANCE = 60.0
 
     # ============================================
     # Visualización
