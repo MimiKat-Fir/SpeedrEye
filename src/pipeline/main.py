@@ -17,6 +17,7 @@ from pipeline.config import Config
 from pipeline.detector import Detector
 from pipeline.distance import build_distance_estimator
 from pipeline.visualizer import Visualizer
+from src.pipeline.tracking import KalmanPredictor #cambio
 
 
 class SpeedrEyePipeline:
@@ -62,6 +63,51 @@ class SpeedrEyePipeline:
                 if (detection["bbox"][1] + detection["bbox"][3]) / 2 > horizon_y
             ]
 
+        #cambios
+        current_frame_ids = set()
+
+        for det in detections:
+            track_id = det.get("track_id")
+            
+            if track_id is not None:
+                current_frame_ids.add(track_id)
+                x1, y1, x2, y2 = det["bbox"]
+                
+                # 1. Punto de contacto con el suelo (Pies del peatón/ciclista)
+                feet_x = int((x1 + x2) / 2)
+                feet_y = int(y2)
+
+                # 2. Si es un nuevo ID, inicializamos su Filtro de Kalman
+                if track_id not in self.trackers:
+                    self.trackers[track_id] = KalmanPredictor()
+
+                # 3. Le pasamos a Kalman la posición actual real (Medición + Actualización)
+                self.trackers[track_id].update(feet_x, feet_y)
+
+                # 4. Predecimos los próximos 30 cuadros en el futuro (~1 segundo a 30 FPS)
+                future_path = self.trackers[track_id].predict_future(steps=30)
+                
+                # 5. Guardamos la trayectoria predicha dentro del diccionario de la detección
+                det["future_path"] = future_path
+
+        # 6. Limpieza: Eliminamos los Filtros de objetos que ya no están en pantalla
+        lost_ids = set(self.trackers.keys()) - current_frame_ids
+        for lost_id in lost_ids:
+            del self.trackers[lost_id]
+        # =========================================================================
+
+        start_distance = time.perf_counter()
+        if self.distance_estimator is not None:
+            detections = self.distance_estimator.estimate(detections, frame.shape)
+        distance_time = (time.perf_counter() - start_distance) * 1000
+
+        start_visualization = time.perf_counter()
+        # Ahora 'detections' lleva consigo la clave 'future_path' para que el visualizer la dibuje
+        output = self.visualizer.draw(frame, detections)
+        visualization_time = (time.perf_counter() - start_visualization) * 1000
+        
+
+        ##
         start_distance = time.perf_counter()
         if self.distance_estimator is not None:
             detections = self.distance_estimator.estimate(detections, frame.shape)
