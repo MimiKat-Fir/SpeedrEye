@@ -18,7 +18,7 @@ from pipeline.detector import Detector
 from pipeline.distance import build_distance_estimator
 from pipeline.visualizer import Visualizer
 from pipeline.tracking import KalmanPredictor #cambio
-
+from pipeline.tracking.pose_estimator import PoseOrientationEstimator
 
 class SpeedrEyePipeline:
     def __init__(self, config, video_path=None, distance_method=None):
@@ -50,6 +50,9 @@ class SpeedrEyePipeline:
             config,
         )
         self.visualizer = Visualizer(config)
+
+        self.pose_estimator = PoseOrientationEstimator()
+
 
     def process_frame(self, frame):
         start_total = time.perf_counter()
@@ -88,44 +91,54 @@ class SpeedrEyePipeline:
         cy = getattr(self.config, "CY", frame.shape[0] / 2)
         fps_actual = getattr(self.config, "TARGET_FPS", 30.0)
 
+        body_orientations = self.pose_estimator.get_orientations(frame, detections)
+
         for det in detections:
             track_id = det.get("track_id")
             z_meters = det.get("distance") or det.get("distance_m")
 
+            # Nos aseguramos de tener un track_id válido y distancia
             if track_id is not None and z_meters is not None and z_meters > 0:
                 current_frame_ids.add(track_id)
                 x1, y1, x2, y2 = det["bbox"]
                 
-                # Punto de contacto con el suelo (Pies del peatón/ciclista)
                 feet_x = int((x1 + x2) / 2)
                 feet_y = int(y2)
                 x_meters = ((feet_x - cx) * z_meters) / fx
-                #feet_y = int(y2)
 
-                # Si es un nuevo ID, inicializamos su Filtro de Kalman
+                # 1. GARANTIZAMOS QUE EL TRACKER EXISTA EN EL DICCIONARIO
                 if track_id not in self.trackers:
                     self.trackers[track_id] = KalmanPredictor(fps=fps_actual)
 
-                # Le pasamos a Kalman la posición actual real
+                # 2. Actualizamos Kalman con las posiciones físicas
                 self.trackers[track_id].update(x_meters, z_meters)
 
-                # Le pedimos la trayectoria proyectada a 2.5 segundos en el futuro
-                det["future_path"] = self.trackers[track_id].predict_path_pixels(
-                    seconds_ahead=1.2,
-                    steps=8,
-                    fx=fx,
-                    cx=cx,
-                    feet_x=feet_x,
-                    feet_y=y2,
-                    cy=cy,
-                    bbox=det["bbox"]  
-                )
-                
+                # 3. Calculamos la trayectoria con Pose o con Kalman Fallback
+                if track_id in body_orientations:
+                    body_dx, body_dy = body_orientations[track_id]
+                    det["future_path"] = self.trackers[track_id].predict_path_pixels_pose(
+                        feet_x=feet_x,
+                        feet_y=feet_y,
+                        body_dx=body_dx,
+                        body_dy=body_dy,
+                        steps=8,
+                        arrow_length=45
+                    )
+                else:
+                    det["future_path"] = self.trackers[track_id].predict_path_pixels(
+                        seconds_ahead=1.2,
+                        steps=8,
+                        fx=fx,
+                        cx=cx,
+                        feet_x=feet_x,
+                        feet_y=feet_y,
+                        cy=cy,
+                        bbox=det["bbox"]
+                    )
             
-            print(f"DEBUG -> ID: {track_id}, tiene_path: {'future_path' in det}") #para ver si los ids se pierden
+            print(f"DEBUG -> ID: {track_id}, tiene_path: {'future_path' in det}")
 
-
-        # Limpieza de memoria para objetos que salen de pantalla
+        # Limpieza de memoria para objetos que salen del cuadro
         lost_ids = set(self.trackers.keys()) - current_frame_ids
         for lost_id in lost_ids:
             del self.trackers[lost_id]

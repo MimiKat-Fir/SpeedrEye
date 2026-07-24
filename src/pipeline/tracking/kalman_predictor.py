@@ -95,3 +95,23 @@ class KalmanPredictor:
             path.append((px_x, px_y))
 
         return path
+    
+
+    
+    def predict_path_pixels_pose(self, feet_x, feet_y, body_dx, body_dy, steps=8, arrow_length=45):
+        """
+        Proyecta la flecha siguiendo exactamente la orientación del torso/hombros.
+        """
+        path = []
+
+        # body_dx define la inclinación lateral real del cuerpo (-1.0 izquierda, 1.0 derecha)
+        dx_total = int(body_dx * arrow_length)
+        dy_total = int(body_dy * arrow_length * 0.35) # Aplanado para perspectiva de suelo
+
+        for i in range(1, steps + 1):
+            factor = i / steps
+            px_x = int(feet_x + (dx_total * factor))
+            px_y = int(feet_y + (dy_total * factor))
+            path.append((px_x, px_y))
+
+        return path
