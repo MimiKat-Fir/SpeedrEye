@@ -1,52 +1,97 @@
 import numpy as np
 from filterpy.kalman import KalmanFilter
+from filterpy.common import Q_discrete_white_noise
+from collections import deque
 
 class KalmanPredictor:
-    def __init__(self, dt=1.0):
-        """
-        Inicializa el filtro de Kalman para UN objeto específico.
-        dt: el paso de tiempo entre frames (normalmente 1.0)
-        """
+    def __init__(self, fps=30.0, history_size=12):
+        self.dt = 1.0 / fps if fps > 0 else 1.0 / 30.0
+
         self.kf = KalmanFilter(dim_x=4, dim_z=2)
-        # dim_x = 4 estados: [x, y, vx, vy]
-        # dim_z = 2 mediciones: [x, y] (lo que nos da YOLO)
 
-        # 1. Definir la matriz de transición de estado (Física del movimiento)
+        # Matriz de transición de estado (F)
         self.kf.F = np.array([
-            [1, 0, dt, 0 ],  # x_nuevo = x + vx * dt
-            [0, 1, 0,  dt],  # y_nuevo = y + vy * dt
-            [0, 0, 1,  0 ],  # vx se mantiene constante si no hay aceleración
-            [0, 0, 0,  1 ]   # vy se mantiene constante
-        ])
+            [1, 0, self.dt, 0],
+            [0, 1, 0,  self.dt],
+            [0, 0, 1,  0],
+            [0, 0, 0,  1]
+        ], dtype=float)
 
-        # 2. Definir la matriz de medición (H)
-        # Solo podemos MEDIR posición (x, y) de YOLO, la velocidad la INFIERE Kalman
+        # Matriz de medición (H)
         self.kf.H = np.array([
             [1, 0, 0, 0],
             [0, 1, 0, 0]
+        ], dtype=float)
+
+        self.kf.R = np.eye(2) * 0.3
+        self.kf.P = np.eye(4) * 10.0
+
+        q_x = Q_discrete_white_noise(dim=2, dt=self.dt, var=0.05)
+        self.kf.Q = np.block([
+            [q_x, np.zeros((2, 2))],
+            [np.zeros((2, 2)), q_x]
         ])
 
-        # Ruido e incertidumbre (Ajustes de sensibilidad)
-        self.kf.R *= 10.0   # Incertidumbre de la detección de YOLO
-        self.kf.P *= 1000.0 # Incertidumbre inicial (al principio no sabemos la velocidad)
-        self.kf.Q *= 0.01   # Ruido del proceso (cuán brusco cambia de dirección la persona)
+        # =====================================================================
+        # HISTÓRICO DE POSICIONES (BUFFER HISTÓRICO DE N FRAMES)
+        # =====================================================================
+        # Deque guarda las últimas N posiciones (x_meters, z_meters)
+        self.history = deque(maxlen=history_size)
 
-    def update(self, center_x, center_y):
-        """Paso 1: Le entregamos a Kalman la coordenada real actual que detectó YOLO."""
-        measurement = np.array([center_x, center_y])
+    def update(self, x_meters, z_meters):
+        """Guarda la posición en el historial y actualiza el estado de Kalman"""
+        measurement = np.array([[x_meters], [z_meters]], dtype=float)
         self.kf.predict()
         self.kf.update(measurement)
 
-    def predict_future(self, steps=10):
-        """Paso 2: Le pedimos a Kalman que proyecte N pasos hacia el futuro sin nuevas mediciones."""
-        future_points = []
-        
-        # Guardamos el estado actual para no alterarlo
-        x_temp = self.kf.x.copy()
-        
-        # Proyectamos hacia adelante en el tiempo repetidamente
-        for _ in range(steps):
-            x_temp = np.dot(self.kf.F, x_temp) # Multiplicamos estado por matriz de física
-            future_points.append((int(x_temp[0][0]), int(x_temp[1][0])))
-            
-        return future_points
+        # Guardamos la posición filtrada actual en el histórico
+        x_filtered = self.kf.x[0, 0]
+        z_filtered = self.kf.x[1, 0]
+        self.history.append((x_filtered, z_filtered))
+
+    def predict_path_pixels(self, seconds_ahead=1.2, steps=8, fx=800.0, cx=320.0, feet_x=0, feet_y=0, cy=240.0, bbox=None):
+        path = []
+
+        # ---------------------------------------------------------------------
+        # CÁLCULO DE VELOCIDAD BASADO EN EL HISTÓRICO DE MÁS DE N FRAMES
+        # ---------------------------------------------------------------------
+        # Si aún no tenemos suficientes frames para calcular la tendencia,
+        # usamos una velocidad por defecto (flecha corta hacia el frente)
+        if len(self.history) < 4:
+            dx_total = 0
+            dy_total = -30
+        else:
+            # Comparamos la posición de HACE N FRAMES con la posición ACTUAL
+            x_old, z_old = self.history[0]
+            x_curr, z_curr = self.history[-1]
+
+            # Tiempo transcurrido en el histórico (en segundos)
+            time_elapsed = (len(self.history) - 1) * self.dt
+
+            # Velocidad real calculada por tendencia física (m/s)
+            vx_trend = (x_curr - x_old) / time_elapsed
+            vz_trend = (z_curr - z_old) / time_elapsed
+
+            v_total = np.sqrt(vx_trend**2 + vz_trend**2)
+
+            # Si el desplazamiento promedio en los últimos frames es muy pequeño,
+            # está prácticamente parado o caminando en el sitio
+            if v_total < 0.15:
+                dx_total = 0
+                arrow_length = 30
+            else:
+                # Proyección de dirección lateral basada en la trayectoria real reciente
+                dir_x = np.clip(vx_trend / v_total, -1.0, 1.0)
+                arrow_length = int(np.clip(v_total * 25.0, 35, 65))
+                dx_total = int(dir_x * arrow_length)
+
+            dy_total = -arrow_length
+
+        # Generación de la línea de la flecha
+        for i in range(1, steps + 1):
+            factor = i / steps
+            px_x = int(feet_x + (dx_total * factor))
+            px_y = int(feet_y + (dy_total * factor * 0.35))
+            path.append((px_x, px_y))
+
+        return path

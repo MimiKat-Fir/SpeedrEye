@@ -39,6 +39,9 @@ class DirectDistanceEstimator:
             distances = distances.clamp(self.config.MIN_DISTANCE, self.config.MAX_DISTANCE)
 
         for detection, distance in zip(detections, distances.tolist()):
-            detection["distance"] = distance
+            #detection["distance"] = distance
+            #detection["distance_method"] = "direct"
+            dist_val = distance[0] if isinstance(distance, list) else distance
+            detection["distance"] = dist_val
             detection["distance_method"] = "direct"
         return detections
