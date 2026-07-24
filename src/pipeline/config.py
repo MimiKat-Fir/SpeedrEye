@@ -63,3 +63,22 @@ class Config:
     # Métricas
     # ============================================
     FPS_BUFFER_SIZE = 30
+
+    # ============================================
+    # VARIABLES ALERTAS DE COLISIÓN
+    # ============================================
+    
+    # Anchura del rectángulo en la parte inferior de la imagen (px)
+    ALERT_ZONE_BOTTOM_WIDTH = 450
+
+    # Anchura en la parte superior (si quieres un trapecio)
+    ALERT_ZONE_TOP_WIDTH = 180
+
+    # Altura de la zona de seguridad (px)
+    ALERT_ZONE_HEIGHT = 200
+
+    # Número de pasos futuros de Kalman a comprobar
+    ALERT_PREDICTION_STEPS = 15
+
+    # Activar/desactivar el sistema
+    ENABLE_ALERT_SYSTEM = True

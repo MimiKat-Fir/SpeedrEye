@@ -4,16 +4,14 @@ import numpy as np
 
 class AlertSystem:
     """
-    Sistema de alerta por invasión de la zona de seguridad.
+    Sistema de alerta basado en una zona de seguridad frontal.
     """
 
     def __init__(self, config):
         self.config = config
 
+
     def get_alert_zone(self, frame_shape):
-        """
-        Devuelve los cuatro vértices de la zona de seguridad.
-        """
 
         h, w = frame_shape[:2]
 
@@ -25,21 +23,25 @@ class AlertSystem:
         bottom_half = self.config.ALERT_ZONE_BOTTOM_WIDTH // 2
         top_half = self.config.ALERT_ZONE_TOP_WIDTH // 2
 
-        zone = np.array([
+
+        polygon = np.array([
             [center_x - bottom_half, bottom_y],
             [center_x + bottom_half, bottom_y],
             [center_x + top_half, top_y],
             [center_x - top_half, top_y]
         ], dtype=np.int32)
 
-        return zone
+
+        return polygon
+
+
 
     def process(self, detections, frame_shape):
-        """
-        Comprueba si alguna trayectoria futura invade la zona.
-        """
 
-        zone = self.get_alert_zone(frame_shape)
+        polygon = self.get_alert_zone(frame_shape)
+
+        global_alert = False
+
 
         for det in detections:
 
@@ -47,19 +49,35 @@ class AlertSystem:
 
             future = det.get("future_path")
 
+
             if future is None:
                 continue
+
 
             for point in future:
 
                 inside = cv2.pointPolygonTest(
-                    zone,
-                    (float(point[0]), float(point[1])),
+                    polygon,
+                    (
+                        float(point[0]),
+                        float(point[1])
+                    ),
                     False
                 )
 
+
                 if inside >= 0:
+
                     det["alert"] = True
+                    global_alert = True
                     break
 
-        return detections, zone
+
+
+        alert_zone = {
+            "polygon": polygon,
+            "alert": global_alert
+        }
+
+
+        return detections, alert_zone

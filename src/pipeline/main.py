@@ -19,6 +19,7 @@ from pipeline.distance import build_distance_estimator
 from pipeline.visualizer import Visualizer
 from pipeline.tracking import KalmanPredictor #cambio
 from pipeline.tracking.pose_estimator import PoseOrientationEstimator
+from pipeline.alert.system import AlertSystem
 
 class SpeedrEyePipeline:
     def __init__(self, config, video_path=None, distance_method=None):
@@ -50,6 +51,7 @@ class SpeedrEyePipeline:
             config,
         )
         self.visualizer = Visualizer(config)
+        self.alert_system = AlertSystem(config)
 
         self.pose_estimator = PoseOrientationEstimator()
 
@@ -143,10 +145,21 @@ class SpeedrEyePipeline:
         for lost_id in lost_ids:
             del self.trackers[lost_id]
 
+        #Sistema de alerta
+        detections, alert_zone = self.alert_system.process(
+            detections,
+            frame.shape
+        )
 
-        # 6. Visualización (UN SOLO DRAW AL FINAL)
+        # Visualización
         start_visualization = time.perf_counter()
-        output = self.visualizer.draw(frame, detections)
+
+        output = self.visualizer.draw(
+            frame,
+            detections,
+            alert_zone=alert_zone
+        )
+
         visualization_time = (time.perf_counter() - start_visualization) * 1000
 
         # 7. Cálculo de métricas y renderizado de la UI
