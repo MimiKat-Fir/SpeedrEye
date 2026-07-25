@@ -2,8 +2,11 @@ import numpy as np
 from ultralytics import YOLO
 
 class PoseOrientationEstimator:
-    def __init__(self, model_path="yolov8n-pose.pt"):
+    def __init__(self, model_path=None):
         # Cargamos el modelo nano de pose (súper ligero, ~6MB)
+        if model_path is None:
+            from pathlib import Path
+            model_path = str(Path(__file__).parent.parent.parent.parent / "models" / "yolo" / "yolov8n-pose.pt")
         self.model = YOLO(model_path)
 
     def get_orientations(self, frame, detections):

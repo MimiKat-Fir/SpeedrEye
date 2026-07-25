@@ -137,8 +137,6 @@ class SpeedrEyePipeline:
                         cy=cy,
                         bbox=det["bbox"]
                     )
-            
-            print(f"DEBUG -> ID: {track_id}, tiene_path: {'future_path' in det}")
 
         # Limpieza de memoria para objetos que salen del cuadro
         lost_ids = set(self.trackers.keys()) - current_frame_ids

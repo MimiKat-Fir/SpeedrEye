@@ -24,8 +24,6 @@ class Detector:
         if results[0].boxes is not None:
             boxes = results[0].boxes
 
-            print("--> YOLO BOXES ID:", boxes.id)
-
             for box in boxes:
 
                 cls = int(box.cls[0])
