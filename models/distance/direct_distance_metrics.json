@@ -1,16 +1,22 @@
 {
-  "run_name": "direct_distance_v1",
+  "run_name": "direct_distance_local_100",
+  "resume_from_epoch": 20,
+  "training_completed_epoch": 100,
+  "best_epoch": 76,
+  "best_validation_mae_m": 0.9972041635777993,
   "detector_weights": "speedreye_best.pt",
   "detector_sha256": "eadeed3c020aecf0ed3aefc60f3d9ca87ac8e1640a9b2619d02f6cbdafe3baa3",
   "train_frames": 1949,
   "validation_frames": 488,
   "objects": 6034,
-  "distance_sources": {
-    "kitti_3d": 6034
+  "last_train": {
+    "loss": 0.002379471982862224,
+    "mae_m": 1.0531208216959478,
+    "rmse_m": 1.619336750906677
   },
-  "validation": {
-    "loss": 0.003838990773054252,
-    "mae_m": 1.2685019961919375,
-    "rmse_m": 1.975835239552912
+  "last_validation": {
+    "loss": 0.003947830970063847,
+    "mae_m": 1.2133769451619398,
+    "rmse_m": 1.8854745098932673
   }
 }
