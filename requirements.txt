@@ -6,10 +6,11 @@
 ultralytics>=8.0.0
 
 # Visión por computador
-opencv-python>=4.8.0
+opencv-python>=4.8.0,<5.0
+opencv-contrib-python>=4.8.0,<5.0
 
 # Procesamiento numérico y datos
-numpy>=1.24.0
+numpy>=1.24.0,<2.3
 pandas>=2.0.0
 
 # Gráficos y visualización
@@ -26,3 +27,9 @@ pyyaml>=6.0
 
 # TensorBoard (para visualizar logs de entrenamiento)
 tensorboard>=2.13.0
+
+# Filtro de Kalman para tracking
+filterpy>=1.4.5
+
+# Para el tracker ByteTrack
+lapjv>=0.5.12
