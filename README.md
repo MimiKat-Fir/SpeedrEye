@@ -37,6 +37,9 @@ For the simplest setup, open it directly in Colab:
 
 [Open the direct-distance notebook in Google Colab](https://colab.research.google.com/github/MimiKat-Fir/SpeedrEye/blob/feature/direct-geometry-distance/notebooks/train_direct_distance.ipynb)
 
+The notebook trains through 100 total epochs and resumes from the latest available
+checkpoint. The published Colab run completed epoch 20.
+
 The notebook:
 
 1. reads KITTI images, labels, camera calibration, and optional Velodyne files;
@@ -51,6 +54,7 @@ In Colab, the core KITTI files and full training are enabled automatically. The 
 The final artifacts use project-relative paths on every computer:
 
 - `models/distance/direct_distance.pt`: portable direct-distance weights;
+- `models/distance/direct_distance_last.pt`: exact training-resume checkpoint;
 - `models/distance/direct_distance_metrics.json`: validation and compatibility metadata;
 - `tensorboard/direct_distance/<run name>/`: TensorBoard event files.
 
@@ -60,6 +64,25 @@ The notebook downloads a ZIP containing these artifacts. Its final optional cell
 git switch feature/direct-geometry-distance
 git pull
 python src/pipeline/main.py --camera --distance-method direct
+```
+
+### Continue locally on Linux/CUDA
+
+The root script continues the published Colab training from epoch 21 to epoch 100.
+It requires a CUDA-enabled PyTorch installation in the Conda environment:
+
+```bash
+conda activate ai
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+python train_direct_distance_local.py
+```
+
+KITTI stays under `data/kitti_raw/` for faster repeated training. The script downloads
+the core KITTI archives there only when the dataset is missing. It saves the best
+inference weights, an exact last-epoch checkpoint, metrics, and a new TensorBoard run.
+
+```bash
+tensorboard --logdir tensorboard/direct_distance
 ```
 
 ## Layout
