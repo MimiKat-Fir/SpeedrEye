@@ -18,8 +18,4 @@ __all__ = [
     "DirectDistanceEstimator",
     "GeometryGuidedDistanceEstimator",
     "build_distance_estimator",
-<<<<<<< HEAD
 ]
-=======
-]
->>>>>>> sistema_prediccion
