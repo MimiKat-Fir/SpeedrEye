@@ -134,4 +134,8 @@ def load_distance_head(checkpoint_path, expected_mode, detector_weights=None):
     )
     head.load_state_dict(checkpoint["head_state_dict"])
     head.eval()
+<<<<<<< HEAD
     return head
+=======
+    return head
+>>>>>>> sistema_prediccion

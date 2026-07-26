@@ -35,7 +35,6 @@ results/*
 
 # Jupyter
 .ipynb_checkpoints/
-*.ipynb
 
 # Logs
 *.log
@@ -47,5 +46,10 @@ backup/
 # Archivos temporales
 *.tmp
 *.temp
+<<<<<<< HEAD
 *export*
 *project*
+=======
+
+*export*
+>>>>>>> sistema_prediccion

@@ -2,7 +2,7 @@
 # SpeedrEye - KITTI Viandantes
 # Clases: ['Pedestrian', 'Cyclist']
 
-path: /run/media/aerok/XtraDisk/Documentos/Academic/SAMIA/SpeedrEye/notebooks/data/kitti_filtered
+path: ../data/kitti_filtered
 train: images/train
 val: images/val
 test: images/test

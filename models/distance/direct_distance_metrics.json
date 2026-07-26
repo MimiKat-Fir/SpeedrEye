@@ -1,0 +1,16 @@
+{
+  "run_name": "direct_distance_v1",
+  "detector_weights": "speedreye_best.pt",
+  "detector_sha256": "eadeed3c020aecf0ed3aefc60f3d9ca87ac8e1640a9b2619d02f6cbdafe3baa3",
+  "train_frames": 1949,
+  "validation_frames": 488,
+  "objects": 6034,
+  "distance_sources": {
+    "kitti_3d": 6034
+  },
+  "validation": {
+    "loss": 0.003838990773054252,
+    "mae_m": 1.2685019961919375,
+    "rmse_m": 1.975835239552912
+  }
+}

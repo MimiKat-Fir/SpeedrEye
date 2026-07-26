@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+<<<<<<< HEAD
 """SpeedrEye detection pipeline - Nuevo sistema de distancia."""
+=======
+"""SpeedrEye detection pipeline."""
+>>>>>>> sistema_prediccion
 
 import argparse
 import sys
@@ -17,7 +21,13 @@ from pipeline.config import Config
 from pipeline.detector import Detector
 from pipeline.distance import build_distance_estimator
 from pipeline.visualizer import Visualizer
+<<<<<<< HEAD
 
+=======
+from pipeline.tracking import KalmanPredictor #cambio
+from pipeline.tracking.pose_estimator import PoseOrientationEstimator
+from pipeline.alert.system import AlertSystem
+>>>>>>> sistema_prediccion
 
 class SpeedrEyePipeline:
     def __init__(self, config, video_path=None, distance_method=None):
@@ -25,11 +35,18 @@ class SpeedrEyePipeline:
         self.fps_buffer = deque(maxlen=config.FPS_BUFFER_SIZE)
         self.frame_count = 0
 
+<<<<<<< HEAD
         # Calibración
+=======
+        ##
+        self.trackers = {}
+
+>>>>>>> sistema_prediccion
         self.calibrator = CameraCalibrator(config)
         if video_path and Path(video_path).exists():
             self.calibrator.calibrate_from_video(video_path, num_frames=20)
 
+<<<<<<< HEAD
         params = self.calibrator.get_parameters()
         config.FOCAL_LENGTH = params["focal_length"]
         config.CX = params["cx"]
@@ -39,12 +56,25 @@ class SpeedrEyePipeline:
         self.detector = Detector(config)
 
         # Distancia (nuevo sistema)
+=======
+        self.detector = Detector(config)
+        # Forzamos a limpiar la memoria interna del tracker de Ultralytics
+        if hasattr(self.detector.model, 'predictor') and self.detector.model.predictor is not None:
+            self.detector.model.predictor.trackers = []
+
+        params = self.calibrator.get_parameters()
+        config.FOCAL_LENGTH = params["focal_length"]
+        config.CX = params["cx"]
+        config.CY = params["cy"]
+
+>>>>>>> sistema_prediccion
         self.distance_method = distance_method or config.DISTANCE_METHOD
         self.distance_estimator = build_distance_estimator(
             self.distance_method,
             self.detector,
             config,
         )
+<<<<<<< HEAD
 
         self.visualizer = Visualizer(config)
 
@@ -70,17 +100,128 @@ class SpeedrEyePipeline:
             ]
 
         # 4. Estimar distancia (nuevo sistema)
+=======
+        self.visualizer = Visualizer(config)
+        self.alert_system = AlertSystem(config)
+
+        self.pose_estimator = PoseOrientationEstimator()
+
+
+    def process_frame(self, frame):
+        start_total = time.perf_counter()
+
+        # 1. Detección y seguimiento con YOLO
+        start_detection = time.perf_counter()
+        detections = self.detector.detect(frame)
+        detection_time = (time.perf_counter() - start_detection) * 1000
+
+
+        # 2. Recalibración periódica de la escena
+        if self.frame_count % 10 == 0 and self.calibrator.is_calibrated:
+            self.calibrator.update_scene_params(frame)
+
+        # 3. Filtrado por línea del horizonte
+        if self.calibrator.horizon_line is not None:
+            horizon_y = self.calibrator.horizon_line
+            detections = [
+                detection
+                for detection in detections
+                if (detection["bbox"][1] + detection["bbox"][3]) / 2 > horizon_y
+            ]
+
+        # 4. Estimación de distancia
+>>>>>>> sistema_prediccion
         start_distance = time.perf_counter()
         if self.distance_estimator is not None:
             detections = self.distance_estimator.estimate(detections, frame.shape)
         distance_time = (time.perf_counter() - start_distance) * 1000
 
+<<<<<<< HEAD
         # 5. Visualización
         start_visualization = time.perf_counter()
         output = self.visualizer.draw(frame, detections)
         visualization_time = (time.perf_counter() - start_visualization) * 1000
 
         # 6. Métricas
+=======
+
+        #kalman
+        current_frame_ids = set()
+
+        fx = getattr(self.config, "FOCAL_LENGTH", 800.0)
+        cx = getattr(self.config, "CX", frame.shape[1] / 2)
+        cy = getattr(self.config, "CY", frame.shape[0] / 2)
+        fps_actual = getattr(self.config, "TARGET_FPS", 30.0)
+
+        body_orientations = self.pose_estimator.get_orientations(frame, detections)
+
+        for det in detections:
+            track_id = det.get("track_id")
+            z_meters = det.get("distance") or det.get("distance_m")
+
+            # Nos aseguramos de tener un track_id válido y distancia
+            if track_id is not None and z_meters is not None and z_meters > 0:
+                current_frame_ids.add(track_id)
+                x1, y1, x2, y2 = det["bbox"]
+                
+                feet_x = int((x1 + x2) / 2)
+                feet_y = int(y2)
+                x_meters = ((feet_x - cx) * z_meters) / fx
+
+                # 1. GARANTIZAMOS QUE EL TRACKER EXISTA EN EL DICCIONARIO
+                if track_id not in self.trackers:
+                    self.trackers[track_id] = KalmanPredictor(fps=fps_actual)
+
+                # 2. Actualizamos Kalman con las posiciones físicas
+                self.trackers[track_id].update(x_meters, z_meters)
+
+                # 3. Calculamos la trayectoria con Pose o con Kalman Fallback
+                if track_id in body_orientations:
+                    body_dx, body_dy = body_orientations[track_id]
+                    det["future_path"] = self.trackers[track_id].predict_path_pixels_pose(
+                        feet_x=feet_x,
+                        feet_y=feet_y,
+                        body_dx=body_dx,
+                        body_dy=body_dy,
+                        steps=8,
+                        arrow_length=45
+                    )
+                else:
+                    det["future_path"] = self.trackers[track_id].predict_path_pixels(
+                        seconds_ahead=1.2,
+                        steps=8,
+                        fx=fx,
+                        cx=cx,
+                        feet_x=feet_x,
+                        feet_y=feet_y,
+                        cy=cy,
+                        bbox=det["bbox"]
+                    )
+
+        # Limpieza de memoria para objetos que salen del cuadro
+        lost_ids = set(self.trackers.keys()) - current_frame_ids
+        for lost_id in lost_ids:
+            del self.trackers[lost_id]
+
+        #Sistema de alerta
+        detections, alert_zone = self.alert_system.process(
+            detections,
+            frame.shape
+        )
+
+        # Visualización
+        start_visualization = time.perf_counter()
+
+        output = self.visualizer.draw(
+            frame,
+            detections,
+            alert_zone=alert_zone
+        )
+
+        visualization_time = (time.perf_counter() - start_visualization) * 1000
+
+        # 7. Cálculo de métricas y renderizado de la UI
+>>>>>>> sistema_prediccion
         total_time = (time.perf_counter() - start_total) * 1000
         self.fps_buffer.append(1000 / total_time if total_time > 0 else 0)
         self.frame_count += 1
@@ -96,6 +237,11 @@ class SpeedrEyePipeline:
         }
         self.visualizer.draw_ui(output, metrics)
         return output, detections, metrics
+<<<<<<< HEAD
+=======
+    
+
+>>>>>>> sistema_prediccion
 
     def run_video(self, video_path):
         if isinstance(video_path, str) and not Path(video_path).exists():
@@ -106,6 +252,11 @@ class SpeedrEyePipeline:
         if not cap.isOpened():
             print("No se pudo abrir la fuente")
             return
+<<<<<<< HEAD
+=======
+        
+        self.trackers.clear()
+>>>>>>> sistema_prediccion
 
         while True:
             ok, frame = cap.read()
