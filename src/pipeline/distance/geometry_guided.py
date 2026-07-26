@@ -61,8 +61,4 @@ class GeometryGuidedDistanceEstimator:
                 self.config.MAX_DISTANCE,
             )
             detection["distance_method"] = method
-<<<<<<< HEAD
         return detections
-=======
-        return detections
->>>>>>> sistema_prediccion

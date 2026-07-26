@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-<<<<<<< HEAD
-"""SpeedrEye detection pipeline - Nuevo sistema de distancia."""
-=======
 """SpeedrEye detection pipeline."""
->>>>>>> sistema_prediccion
 
 import argparse
 import sys
@@ -21,13 +17,9 @@ from pipeline.config import Config
 from pipeline.detector import Detector
 from pipeline.distance import build_distance_estimator
 from pipeline.visualizer import Visualizer
-<<<<<<< HEAD
-
-=======
 from pipeline.tracking import KalmanPredictor #cambio
 from pipeline.tracking.pose_estimator import PoseOrientationEstimator
 from pipeline.alert.system import AlertSystem
->>>>>>> sistema_prediccion
 
 class SpeedrEyePipeline:
     def __init__(self, config, video_path=None, distance_method=None):
@@ -35,28 +27,13 @@ class SpeedrEyePipeline:
         self.fps_buffer = deque(maxlen=config.FPS_BUFFER_SIZE)
         self.frame_count = 0
 
-<<<<<<< HEAD
-        # Calibración
-=======
         ##
         self.trackers = {}
 
->>>>>>> sistema_prediccion
         self.calibrator = CameraCalibrator(config)
         if video_path and Path(video_path).exists():
             self.calibrator.calibrate_from_video(video_path, num_frames=20)
 
-<<<<<<< HEAD
-        params = self.calibrator.get_parameters()
-        config.FOCAL_LENGTH = params["focal_length"]
-        config.CX = params["cx"]
-        config.CY = params["cy"]
-
-        # Detector YOLO
-        self.detector = Detector(config)
-
-        # Distancia (nuevo sistema)
-=======
         self.detector = Detector(config)
         # Forzamos a limpiar la memoria interna del tracker de Ultralytics
         if hasattr(self.detector.model, 'predictor') and self.detector.model.predictor is not None:
@@ -67,40 +44,12 @@ class SpeedrEyePipeline:
         config.CX = params["cx"]
         config.CY = params["cy"]
 
->>>>>>> sistema_prediccion
         self.distance_method = distance_method or config.DISTANCE_METHOD
         self.distance_estimator = build_distance_estimator(
             self.distance_method,
             self.detector,
             config,
         )
-<<<<<<< HEAD
-
-        self.visualizer = Visualizer(config)
-
-    def process_frame(self, frame):
-        start_total = time.perf_counter()
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # 1. Detección YOLO
-        start_detection = time.perf_counter()
-        detections = self.detector.detect(frame_rgb)
-        detection_time = (time.perf_counter() - start_detection) * 1000
-
-        # 2. Actualizar horizonte (cada 10 frames)
-        if self.frame_count % 10 == 0 and self.calibrator.is_calibrated:
-            self.calibrator.update_scene_params(frame)
-
-        # 3. Filtrar por horizonte
-        if self.calibrator.horizon_line is not None:
-            horizon_y = self.calibrator.horizon_line
-            detections = [
-                d for d in detections
-                if (d["bbox"][1] + d["bbox"][3]) / 2 > horizon_y
-            ]
-
-        # 4. Estimar distancia (nuevo sistema)
-=======
         self.visualizer = Visualizer(config)
         self.alert_system = AlertSystem(config)
 
@@ -130,20 +79,11 @@ class SpeedrEyePipeline:
             ]
 
         # 4. Estimación de distancia
->>>>>>> sistema_prediccion
         start_distance = time.perf_counter()
         if self.distance_estimator is not None:
             detections = self.distance_estimator.estimate(detections, frame.shape)
         distance_time = (time.perf_counter() - start_distance) * 1000
 
-<<<<<<< HEAD
-        # 5. Visualización
-        start_visualization = time.perf_counter()
-        output = self.visualizer.draw(frame, detections)
-        visualization_time = (time.perf_counter() - start_visualization) * 1000
-
-        # 6. Métricas
-=======
 
         #kalman
         current_frame_ids = set()
@@ -221,7 +161,6 @@ class SpeedrEyePipeline:
         visualization_time = (time.perf_counter() - start_visualization) * 1000
 
         # 7. Cálculo de métricas y renderizado de la UI
->>>>>>> sistema_prediccion
         total_time = (time.perf_counter() - start_total) * 1000
         self.fps_buffer.append(1000 / total_time if total_time > 0 else 0)
         self.frame_count += 1
@@ -237,11 +176,8 @@ class SpeedrEyePipeline:
         }
         self.visualizer.draw_ui(output, metrics)
         return output, detections, metrics
-<<<<<<< HEAD
-=======
     
 
->>>>>>> sistema_prediccion
 
     def run_video(self, video_path):
         if isinstance(video_path, str) and not Path(video_path).exists():
@@ -252,11 +188,8 @@ class SpeedrEyePipeline:
         if not cap.isOpened():
             print("No se pudo abrir la fuente")
             return
-<<<<<<< HEAD
-=======
         
         self.trackers.clear()
->>>>>>> sistema_prediccion
 
         while True:
             ok, frame = cap.read()

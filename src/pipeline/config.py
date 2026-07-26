@@ -12,11 +12,8 @@ class Config:
     BASE_DIR = Path(__file__).parent.parent.parent  # Raíz del proyecto
     MODELS_DIR = BASE_DIR / "models"
     RESULTS_DIR = BASE_DIR / "results"
-<<<<<<< HEAD
-=======
     
     # Resultados de calibracion
->>>>>>> sistema_prediccion
     CALIBRATION_DIR = RESULTS_DIR / "calibration"
     CALIBRATION_DIR.mkdir(parents=True, exist_ok=True)
     
@@ -37,26 +34,13 @@ class Config:
         1: (0, 165, 255),
     }
 
-<<<<<<< HEAD
-    # ============================================
-    # Calibración de cámara
-    # ============================================
-=======
     # Calibracion de camara
->>>>>>> sistema_prediccion
     FOCAL_LENGTH = 700.0
     CX = None
     CY = None
 
-<<<<<<< HEAD
-    # ============================================
-    # Distancia (NUEVO SISTEMA)
-    # ============================================
-    DISTANCE_METHOD = "direct"  # "direct", "geometry", "none"
-=======
     # Distancia
     DISTANCE_METHOD = "geometry"
->>>>>>> sistema_prediccion
     DIRECT_DISTANCE_WEIGHTS = MODELS_DIR / "distance" / "direct_distance.pt"
     GEOMETRY_DISTANCE_WEIGHTS = MODELS_DIR / "distance" / "geometry_guided.pt"
     CLASS_HEIGHTS = {
@@ -79,8 +63,6 @@ class Config:
     # Métricas
     # ============================================
     FPS_BUFFER_SIZE = 30
-<<<<<<< HEAD
-=======
 
     # ============================================
     # VARIABLES ALERTAS DE COLISIÓN
@@ -100,4 +82,3 @@ class Config:
 
     # Activar/desactivar el sistema
     ENABLE_ALERT_SYSTEM = True
->>>>>>> sistema_prediccion
