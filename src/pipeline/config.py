@@ -42,7 +42,7 @@ class Config:
     ENABLE_SCENE_RECALIBRATION = False   # <- nuevo, desactivado por defecto
     SCENE_RECALIBRATION_INTERVAL = 150   # si se activa, cada cuántos frames (no cada 10)
     HORIZON_MAX_JUMP_RATIO = 0.08        # % de la altura del frame; rechaza saltos mayores
-
+    SAVE_CALIBRATION_REPORT = True
 
     # ============================================
     # Distancia
