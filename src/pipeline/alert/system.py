@@ -10,11 +10,8 @@ class AlertSystem:
     def __init__(self, config):
         self.config = config
 
-
     def get_alert_zone(self, frame_shape):
-
         h, w = frame_shape[:2]
-
         center_x = w // 2
 
         bottom_y = h
@@ -23,7 +20,6 @@ class AlertSystem:
         bottom_half = self.config.ALERT_ZONE_BOTTOM_WIDTH // 2
         top_half = self.config.ALERT_ZONE_TOP_WIDTH // 2
 
-
         polygon = np.array([
             [center_x - bottom_half, bottom_y],
             [center_x + bottom_half, bottom_y],
@@ -31,53 +27,38 @@ class AlertSystem:
             [center_x - top_half, top_y]
         ], dtype=np.int32)
 
-
         return polygon
 
-
-
-    def process(self, detections, frame_shape):
-
-        polygon = self.get_alert_zone(frame_shape)
+    def process(self, detections, frame_shape, polygon=None):
+        """
+        Evalúa alertas contra `polygon` si se pasa (p.ej. la zona ajustada
+        manualmente), o contra la zona por defecto en caso contrario.
+        Siempre devuelve un alert_zone válido con el polígono, incluso si
+        `detections` está vacío, para que la zona se pueda seguir dibujando.
+        """
+        if polygon is None:
+            polygon = self.get_alert_zone(frame_shape)
 
         global_alert = False
 
-
         for det in detections:
-
             det["alert"] = False
-
             future = det.get("future_path")
-
-
             if future is None:
                 continue
 
-
             for point in future:
-
                 inside = cv2.pointPolygonTest(
-                    polygon,
-                    (
-                        float(point[0]),
-                        float(point[1])
-                    ),
-                    False
+                    polygon, (float(point[0]), float(point[1])), False
                 )
-
-
                 if inside >= 0:
-
                     det["alert"] = True
                     global_alert = True
                     break
-
-
 
         alert_zone = {
             "polygon": polygon,
             "alert": global_alert
         }
-
 
         return detections, alert_zone

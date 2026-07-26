@@ -81,8 +81,10 @@ class SpeedrEyePipeline:
 
         h, w = frame.shape[:2]
 
-        # Valores iniciales
-        bottom_width = min(400, w // 2)
+        # Valores iniciales: las esquinas inferiores arrancan en las
+        # esquinas inferiores reales del frame (0 y w), no centradas con
+        # un ancho fijo — así el punto de partida ya cubre todo el carril
+        # visible más cercano a la cámara.
         top_width = min(150, w // 4)
         height = min(200, h // 3)
 
@@ -94,8 +96,8 @@ class SpeedrEyePipeline:
         points = np.array([
             [cx - top_width // 2, top_y],
             [cx + top_width // 2, top_y],
-            [cx + bottom_width // 2, bottom_y],
-            [cx - bottom_width // 2, bottom_y]
+            [w, bottom_y],
+            [0, bottom_y]
         ], dtype=np.float32)
 
         # Variables de arrastre
@@ -106,52 +108,46 @@ class SpeedrEyePipeline:
         def draw_zone(img):
             viz = img.copy()
             pts = points.astype(np.int32)
-            
+
             # Relleno semitransparente
             overlay = viz.copy()
             cv2.fillPoly(overlay, [pts], (0, 255, 0))
             cv2.addWeighted(overlay, 0.15, viz, 0.85, 0, viz)
-            
+
             # Líneas del trapecio
             cv2.polylines(viz, [pts], True, (0, 255, 0), 2)
-            
+
             # Cuadrícula de referencia
             for i in range(1, 6):
                 alpha = i / 6
                 top_pt = pts[0] + alpha * (pts[1] - pts[0])
                 bottom_pt = pts[3] + alpha * (pts[2] - pts[3])
-                cv2.line(viz, tuple(top_pt.astype(np.int32)), 
-                        tuple(bottom_pt.astype(np.int32)), 
+                cv2.line(viz, tuple(top_pt.astype(np.int32)),
+                        tuple(bottom_pt.astype(np.int32)),
                         (0, 255, 0), 1, cv2.LINE_AA)
-            
+
             # Círculos en las esquinas (más grandes y visibles)
             for i, pt in enumerate(points):
-                # Círculo exterior
                 cv2.circle(viz, tuple(pt.astype(np.int32)), drag_radius, (0, 0, 255), 2)
-                # Círculo interior
                 cv2.circle(viz, tuple(pt.astype(np.int32)), 8, (0, 0, 255), -1)
-                # Número de esquina
-                cv2.putText(viz, f"{i+1}", 
+                cv2.putText(viz, f"{i+1}",
                            (int(pt[0]) - 10, int(pt[1]) + 5),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            
-            # Instrucciones
-            cv2.putText(viz, "Ajusta la zona de alerta (arrastra los circulos rojos)", 
+
+            cv2.putText(viz, "Ajusta la zona de alerta (arrastra los circulos rojos)",
                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            cv2.putText(viz, "ENTER: aceptar   ESC: cancelar   R: resetear", 
+            cv2.putText(viz, "ENTER: aceptar   ESC: cancelar   R: resetear",
                        (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            
+
             return viz
 
         def constrain_point(idx, new_pos):
             """Aplica restricciones inteligentes para mantener el trapecio"""
             x, y = new_pos
-            
-            # Obtener índices de los otros puntos
+
             if idx == 0:  # Superior-izquierdo
                 top_right = points[1]
                 bottom_left = points[3]
-                # No puede cruzar al otro lado
                 x = min(x, top_right[0] - 10)
                 y = min(y, bottom_left[1] - 10)
             elif idx == 1:  # Superior-derecho
@@ -169,17 +165,15 @@ class SpeedrEyePipeline:
                 bottom_right = points[2]
                 x = min(x, bottom_right[0] - 10)
                 y = max(y, top_left[1] + 10)
-            
-            # Limitar al frame
+
             x = max(0, min(w, x))
             y = max(0, min(h, y))
-            
+
             return np.array([x, y], dtype=np.float32)
 
         def reset_zone():
             """Restablece la zona a los valores por defecto"""
             nonlocal points
-            bottom_width = min(400, w // 2)
             top_width = min(150, w // 4)
             height = min(200, h // 3)
             cx = w // 2
@@ -188,55 +182,50 @@ class SpeedrEyePipeline:
             points = np.array([
                 [cx - top_width // 2, top_y],
                 [cx + top_width // 2, top_y],
-                [cx + bottom_width // 2, bottom_y],
-                [cx - bottom_width // 2, bottom_y]
+                [w, bottom_y],
+                [0, bottom_y]
             ], dtype=np.float32)
 
         def mouse_callback(event, x, y, flags, param):
             nonlocal dragging, points, last_mouse_pos
-            
+
             if event == cv2.EVENT_LBUTTONDOWN:
-                # Verificar si se hizo clic en algún círculo
                 for i, pt in enumerate(points):
                     if np.linalg.norm(pt - np.array([x, y])) < drag_radius:
                         dragging = i
                         last_mouse_pos = np.array([x, y], dtype=np.float32)
                         break
-            
+
             elif event == cv2.EVENT_MOUSEMOVE:
                 if dragging != -1:
-                    # Calcular desplazamiento desde la última posición
                     current_pos = np.array([x, y], dtype=np.float32)
                     delta = current_pos - last_mouse_pos if last_mouse_pos is not None else np.array([0, 0])
-                    
-                    # Aplicar restricciones
+
                     new_pos = points[dragging] + delta
                     constrained = constrain_point(dragging, new_pos)
-                    
-                    # Actualizar punto
+
                     points[dragging] = constrained
                     last_mouse_pos = current_pos.copy()
-                    
-                    # Actualizar visualización
+
                     viz = draw_zone(frame)
                     cv2.imshow("Ajuste de Zona de Alerta", viz)
-            
+
             elif event == cv2.EVENT_LBUTTONUP:
                 dragging = -1
                 last_mouse_pos = None
 
-        # Crear ventana y configurar mouse
-        cv2.namedWindow("Ajuste de Zona de Alerta", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("Ajuste de Zona de Alerta", 800, 600)
+        # Ventana redimensionable, tamaño inicial acorde a la resolución real
+        # (funciona igual en Linux y Windows).
+        cv2.namedWindow("Ajuste de Zona de Alerta", cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+        cv2.resizeWindow("Ajuste de Zona de Alerta", min(w, 1280), min(h, 720))
         cv2.setMouseCallback("Ajuste de Zona de Alerta", mouse_callback)
 
-        # Bucle de configuración
         while True:
             viz = draw_zone(frame)
             cv2.imshow("Ajuste de Zona de Alerta", viz)
-            
+
             key = cv2.waitKey(1) & 0xFF
-            
+
             if key == 13:  # ENTER
                 self.alert_zone_polygon = points.astype(np.int32)
                 self.alert_zone_configured = True
@@ -249,7 +238,7 @@ class SpeedrEyePipeline:
                 print("🔄 Zona restablecida a valores por defecto")
 
         cv2.destroyWindow("Ajuste de Zona de Alerta")
-        
+
         if self.alert_zone_configured:
             print("✅ Zona de alerta configurada manualmente")
         else:
@@ -257,7 +246,7 @@ class SpeedrEyePipeline:
 
     def process_frame(self, frame):
         start_total = time.perf_counter()
-        
+
         # 1. Detección
         start_detection = time.perf_counter()
         detections = self.detector.detect(frame)
@@ -293,7 +282,6 @@ class SpeedrEyePipeline:
         if detections:
             fx = getattr(self.config, "FOCAL_LENGTH", 800.0)
 
-            # Solo ejecutar pose cada N frames, y solo si hay algo que trackear
             self.pose_counter += 1
             if self.pose_counter >= self.config.POSE_FRAME_SKIP:
                 body_orientations = self.pose_estimator.get_orientations(frame, detections)
@@ -336,28 +324,17 @@ class SpeedrEyePipeline:
 
         prediction_time = (time.perf_counter() - start_prediction) * 1000
 
-        # 6. Alertas
+        # 6. Alertas — el trapecio se calcula y se dibuja siempre (haya o
+        # no detecciones); lo único que se salta sin detecciones es el
+        # bucle de evaluación por objeto, que con lista vacía no hace nada.
         start_alert = time.perf_counter()
 
-        if not detections:
-            alert_zone = None
-        elif self.alert_zone_configured and self.alert_zone_polygon is not None:
-            alert_zone = {"polygon": self.alert_zone_polygon, "alert": False}
-            for det in detections:
-                det["alert"] = False
-                future = det.get("future_path")
-                if future is None:
-                    continue
-                for point in future:
-                    inside = cv2.pointPolygonTest(
-                        self.alert_zone_polygon, (float(point[0]), float(point[1])), False
-                    )
-                    if inside >= 0:
-                        det["alert"] = True
-                        alert_zone["alert"] = True
-                        break
-        else:
-            detections, alert_zone = self.alert_system.process(detections, frame.shape)
+        manual_polygon = (
+            self.alert_zone_polygon
+            if (self.alert_zone_configured and self.alert_zone_polygon is not None)
+            else None
+        )
+        detections, alert_zone = self.alert_system.process(detections, frame.shape, polygon=manual_polygon)
 
         alert_time = (time.perf_counter() - start_alert) * 1000
 
@@ -371,7 +348,6 @@ class SpeedrEyePipeline:
         self.fps_buffer.append(1000 / total_time if total_time > 0 else 0)
         self.frame_count += 1
 
-        # Guardar métricas de rendimiento
         self.performance_metrics['timings'].append({
             'frame': self.frame_count,
             'detection_ms': detection_time,
@@ -409,15 +385,28 @@ class SpeedrEyePipeline:
         if not cap.isOpened():
             print("No se pudo abrir la fuente")
             return
-        
+
         self.trackers.clear()
 
-        # Leer primer frame para configurar zona de alerta
+        # Leer primer frame: se usa para configurar la zona de alerta (si
+        # aplica) y para dimensionar la ventana según la resolución real.
         ret, first_frame = cap.read()
-        if ret and self.config.ENABLE_ALERT_SYSTEM:
-            self.configure_alert_zone(first_frame)
-            # Volver al inicio del video
-            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        if ret:
+            if self.config.ENABLE_ALERT_SYSTEM:
+                self.configure_alert_zone(first_frame)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # siempre rebobinar, se use o no el frame
+
+        # Ventana redimensionable de verdad en Linux y Windows: por defecto
+        # cv2.imshow usa WINDOW_AUTOSIZE, que NO permite estirar la ventana.
+        # WINDOW_NORMAL lo permite; WINDOW_KEEPRATIO evita que la imagen se
+        # deforme al redimensionar. El tamaño inicial se ajusta a la
+        # resolución real del vídeo (con tope, para no abrir gigante en 4K
+        # ni minúsculo en baja resolución).
+        window_name = "SpeedrEye"
+        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+        if ret:
+            h, w = first_frame.shape[:2]
+            cv2.resizeWindow(window_name, min(w, 1280), min(h, 720))
 
         print("\n🚀 Iniciando procesamiento en tiempo real...\n")
 
@@ -427,13 +416,13 @@ class SpeedrEyePipeline:
                 break
 
             output, _, _ = self.process_frame(frame)
-            cv2.imshow("SpeedrEye", output)
+            cv2.imshow(window_name, output)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
         cap.release()
         cv2.destroyAllWindows()
-        
+
         # Guardar métricas de rendimiento
         self.save_performance_metrics()
 
@@ -441,8 +430,7 @@ class SpeedrEyePipeline:
         """Guarda las métricas de rendimiento en un archivo JSON"""
         if not self.performance_metrics['timings']:
             return
-        
-        # Calcular estadísticas
+
         timings = self.performance_metrics['timings']
         avg_timings = {
             'avg_detection_ms': np.mean([t['detection_ms'] for t in timings]),
@@ -457,12 +445,11 @@ class SpeedrEyePipeline:
             'total_time_sec': self.performance_metrics['total_time'] / 1000,
             'avg_fps': np.mean(self.fps_buffer) if self.fps_buffer else 0,
         }
-        
-        # Guardar en archivo
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_path = self.config.RESULTS_DIR / "performance" / f"performance_{timestamp}.json"
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         with open(output_path, 'w') as f:
             json.dump({
                 'summary': avg_timings,
@@ -474,7 +461,7 @@ class SpeedrEyePipeline:
                     'prediction_seconds': self.config.PREDICTION_SECONDS,
                 }
             }, f, indent=2)
-        
+
         print(f"\n📊 Métricas de rendimiento guardadas en: {output_path}")
         print(f"   FPS promedio: {avg_timings['avg_fps']:.1f}")
         print(f"   Tiempo promedio por frame: {avg_timings['avg_total_ms']:.1f}ms")

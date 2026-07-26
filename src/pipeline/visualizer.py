@@ -5,8 +5,45 @@ import numpy as np
 
 
 class Visualizer:
+    # Resolución de referencia sobre la que están calibrados TEXT_SCALE,
+    # BOX_THICKNESS, etc. en Config. El factor de escala compara el ancho
+    # real del frame contra esta referencia, para que el overlay se vea
+    # igual de legible tanto en un vídeo de 480p como en uno de 4K.
+    REFERENCE_WIDTH = 1280
+    MIN_SCALE, MAX_SCALE = 0.5, 3.0
+
     def __init__(self, config):
         self.config = config
+        self._cached_shape = None
+        self._set_scaled_defaults(self.REFERENCE_WIDTH)
+
+    def _set_scaled_defaults(self, frame_width):
+        scale = np.clip(frame_width / self.REFERENCE_WIDTH, self.MIN_SCALE, self.MAX_SCALE)
+        self.scale = scale
+        self.font_scale = self.config.TEXT_SCALE * scale
+        self.text_thickness = max(1, round(self.config.TEXT_THICKNESS * scale))
+        self.box_thickness = max(1, round(self.config.BOX_THICKNESS * scale))
+        self.margin = max(4, round(10 * scale))
+        self.line_height = max(14, round(24 * scale))
+        self.arrow_size = round(10 * scale)
+        self.point_radius = max(2, round(4 * scale))
+
+    def _sync_scale(self, frame_shape):
+        """Recalcula el factor de escala solo si cambia la resolución del frame."""
+        w = frame_shape[1]
+        if (w,) == self._cached_shape:
+            return
+        self._cached_shape = (w,)
+        self._set_scaled_defaults(w)
+
+    def _put_text_outlined(self, frame, text, org, color, font_scale=None, thickness=None):
+        """Texto con contorno negro para que se lea igual sobre cualquier fondo."""
+        font_scale = font_scale if font_scale is not None else self.font_scale
+        thickness = thickness if thickness is not None else self.text_thickness
+        cv2.putText(frame, text, org, self.config.FONT, font_scale, (0, 0, 0),
+                    thickness + 2, cv2.LINE_AA)
+        cv2.putText(frame, text, org, self.config.FONT, font_scale, color,
+                    thickness, cv2.LINE_AA)
 
     def draw_trajectory(self, frame, detection, color):
         future_path = detection.get("future_path")
@@ -15,53 +52,30 @@ class Visualizer:
             return
 
         x1, y1, x2, y2 = detection["bbox"]
+        start_pt = (int((x1 + x2) / 2), int((y1 + y2) / 2))
+        end_pt = (int(future_path[-1][0]), int(future_path[-1][1]))
 
-        # 🔥 PUNTO INICIAL: CENTRO DEL BBOX
-        start_pt = (
-            int((x1 + x2) / 2),
-            int((y1 + y2) / 2)
-        )
+        cv2.line(frame, start_pt, end_pt, color, self.box_thickness + 1, cv2.LINE_AA)
 
-        end_pt = (
-            int(future_path[-1][0]),
-            int(future_path[-1][1])
-        )
-
-        # Línea de trayectoria
-        cv2.line(
-            frame,
-            start_pt,
-            end_pt,
-            color,
-            2,
-            cv2.LINE_AA
-        )
-
-        # Flecha final
-        angle = np.arctan2(
-            end_pt[1] - start_pt[1],
-            end_pt[0] - start_pt[0]
-        )
-
-        arrow_size = 10
-
+        angle = np.arctan2(end_pt[1] - start_pt[1], end_pt[0] - start_pt[0])
         p1 = (
-            int(end_pt[0] - arrow_size * np.cos(angle - np.pi / 6)),
-            int(end_pt[1] - arrow_size * np.sin(angle - np.pi / 6))
+            int(end_pt[0] - self.arrow_size * np.cos(angle - np.pi / 6)),
+            int(end_pt[1] - self.arrow_size * np.sin(angle - np.pi / 6))
         )
-
         p2 = (
-            int(end_pt[0] - arrow_size * np.cos(angle + np.pi / 6)),
-            int(end_pt[1] - arrow_size * np.sin(angle + np.pi / 6))
+            int(end_pt[0] - self.arrow_size * np.cos(angle + np.pi / 6)),
+            int(end_pt[1] - self.arrow_size * np.sin(angle + np.pi / 6))
         )
-
         pts = np.array([end_pt, p1, p2], np.int32)
-        cv2.fillPoly(frame, [pts], color)
-
-        # Círculo en el centro
-        cv2.circle(frame, start_pt, 4, color, -1)
+        cv2.fillPoly(frame, [pts], color, lineType=cv2.LINE_AA)
+        cv2.circle(frame, start_pt, self.point_radius, color, -1, cv2.LINE_AA)
 
     def draw_detection(self, frame, detection):
+        """
+        Dibuja bbox + etiqueta + trayectoria. La alerta ya NO se marca por
+        caja individual (era ruido visual con varias detecciones a la vez);
+        la señal de alerta es el trapecio en rojo + el banner superior.
+        """
         x1, y1, x2, y2 = detection["bbox"]
         class_id = detection["class"]
         confidence = detection["conf"]
@@ -69,7 +83,6 @@ class Visualizer:
 
         color = self.config.CLASS_COLORS.get(class_id, (255, 255, 255))
 
-        # Trayectoria futura
         self.draw_trajectory(frame, detection, color)
 
         label = self.config.CLASS_NAMES.get(class_id, "Objeto")
@@ -77,39 +90,19 @@ class Visualizer:
         if distance is not None:
             text += f" {distance:.1f}m"
 
-        # Bounding box
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, self.config.BOX_THICKNESS)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, self.box_thickness, cv2.LINE_AA)
 
         (text_width, text_height), _ = cv2.getTextSize(
-            text,
-            self.config.FONT,
-            self.config.TEXT_SCALE,
-            self.config.TEXT_THICKNESS
+            text, self.config.FONT, self.font_scale, self.text_thickness
         )
 
-        label_top = max(0, y1 - text_height - 6)
-        cv2.rectangle(frame, (x1, label_top), (x1 + text_width + 6, y1), (0, 0, 0), -1)
+        pad = max(2, round(3 * self.scale))
+        label_top = max(0, y1 - text_height - 2 * pad)
+        cv2.rectangle(frame, (x1, label_top), (x1 + text_width + 2 * pad, y1), (0, 0, 0), -1)
         cv2.putText(
-            frame,
-            text,
-            (x1 + 3, max(text_height, y1 - 3)),
-            self.config.FONT,
-            self.config.TEXT_SCALE,
-            color,
-            self.config.TEXT_THICKNESS
+            frame, text, (x1 + pad, max(text_height, y1 - pad)),
+            self.config.FONT, self.font_scale, color, self.text_thickness, cv2.LINE_AA
         )
-
-        # Alerta individual
-        if detection.get("alert"):
-            cv2.putText(
-                frame,
-                "⚠️ PELIGRO",
-                (x1, y2 + 30),
-                self.config.FONT,
-                0.8,
-                (0, 0, 255),
-                2
-            )
 
     def draw_alert_zone(self, frame, alert_zone):
         if alert_zone is None:
@@ -120,60 +113,84 @@ class Visualizer:
             return
 
         color = (0, 0, 255) if alert_zone.get("alert") else (255, 0, 0)
-        
-        # Dibujar trapecio
-        cv2.polylines(frame, [polygon], True, color, 3)
-        
-        # Relleno semitransparente
+        cv2.polylines(frame, [polygon], True, color, self.box_thickness + 2, cv2.LINE_AA)
+
         overlay = frame.copy()
         cv2.fillPoly(overlay, [polygon], color)
         cv2.addWeighted(overlay, 0.1, frame, 0.9, 0, frame)
 
-    def draw_ui(self, frame, metrics):
-        lines = (
-            f"FPS: {metrics['fps']:.1f}",
-            f"Dets: {metrics['detections']}",
-            f"YOLO: {metrics['detection_time']:.0f}ms",
-            f"Dist: {metrics['distance_time']:.1f}ms",
-            f"Pred: {metrics['prediction_time']:.1f}ms",
-            f"Alert: {metrics['alert_time']:.1f}ms",
-            f"Draw: {metrics['visualization_time']:.1f}ms",
-            f"Total: {metrics['total_time']:.0f}ms",
+    def _draw_alert_banner(self, frame):
+        """Aviso compacto arriba a la derecha, solo mientras haya alerta activa."""
+        text = "COLISION INMINENTE"
+        font_scale = self.font_scale * 1.5
+        thickness = self.text_thickness + 1
+
+        (tw, th), baseline = cv2.getTextSize(text, self.config.FONT, font_scale, thickness)
+        pad = round(8 * self.scale)
+
+        x2 = frame.shape[1] - self.margin
+        x1 = x2 - tw - 2 * pad
+        y1 = self.margin
+        y2 = y1 + th + baseline + 2 * pad
+
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (x1, y1), (x2, y2), (0, 0, 255), -1)
+        cv2.addWeighted(overlay, 0.8, frame, 0.2, 0, frame)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 255), max(1, round(self.scale)), cv2.LINE_AA)
+        cv2.putText(
+            frame, text, (x1 + pad, y2 - pad - baseline // 2),
+            self.config.FONT, font_scale, (255, 255, 255), thickness, cv2.LINE_AA
         )
 
-        for index, text in enumerate(lines):
-            cv2.putText(
-                frame,
-                text,
-                (frame.shape[1] - 170, 30 + index * 22),
-                self.config.FONT,
-                0.4,
-                self.config.UI_TEXT_COLOR,
-                1
-            )
+    def draw_ui(self, frame, metrics):
+        """
+        Solo las métricas que de verdad importan de un vistazo: FPS,
+        detecciones activas y tiempo total por frame. Fijas a la
+        izquierda, con contorno + panel semitransparente para que se
+        lean igual sobre cualquier fondo del vídeo.
+        """
+        fps = metrics["fps"]
+        # FPS coloreado por umbral: aviso visual instantáneo de bajón de rendimiento.
+        if fps >= 25:
+            fps_color = (0, 220, 0)
+        elif fps >= 15:
+            fps_color = (0, 200, 255)
+        else:
+            fps_color = (0, 0, 255)
+
+        lines = (
+            (f"FPS: {fps:.1f}", fps_color),
+            (f"Detecciones: {metrics['detections']}", self.config.UI_TEXT_COLOR),
+            (f"Frame: {metrics['total_time']:.0f}ms", self.config.UI_TEXT_COLOR),
+        )
+
+        panel_w = round(190 * self.scale)
+        panel_h = round(12 * self.scale) + len(lines) * self.line_height
+
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (0, 0), (panel_w, panel_h), (0, 0, 0), -1)
+        cv2.addWeighted(overlay, 0.35, frame, 0.65, 0, frame)
+
+        x = self.margin
+        y = round(22 * self.scale)
+        for text, color in lines:
+            self._put_text_outlined(frame, text, (x, y), color)
+            y += self.line_height
 
     def draw(self, frame, detections, alert_zone=None, metrics=None):
+        self._sync_scale(frame.shape)
         output = frame.copy()
 
-        # Zona de seguridad
+        # El trapecio se dibuja siempre que exista (venga de zona manual o
+        # por defecto), haya o no detecciones en el frame actual.
         if alert_zone is not None:
             self.draw_alert_zone(output, alert_zone)
 
-        # Detecciones
         for detection in detections:
             self.draw_detection(output, detection)
 
-        # Colisión global
-        if any(detection.get("alert") for detection in detections):
-            cv2.putText(
-                output,
-                "⚠️ COLISION INMINENTE!",
-                (50, 80),
-                self.config.FONT,
-                1.5,
-                (0, 0, 255),
-                3
-            )
+        if alert_zone is not None and alert_zone.get("alert"):
+            self._draw_alert_banner(output)
 
         if metrics:
             self.draw_ui(output, metrics)
