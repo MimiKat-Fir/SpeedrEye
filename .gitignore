@@ -47,3 +47,5 @@ backup/
 # Archivos temporales
 *.tmp
 *.temp
+*export*
+*project*

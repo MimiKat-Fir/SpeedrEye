@@ -12,18 +12,11 @@ class Config:
     BASE_DIR = Path(__file__).parent.parent.parent  # Raíz del proyecto
     MODELS_DIR = BASE_DIR / "models"
     RESULTS_DIR = BASE_DIR / "results"
-    
-    # Subcarpetas de resultados
     CALIBRATION_DIR = RESULTS_DIR / "calibration"
-    LOGS_DIR = RESULTS_DIR / "logs"
-    POINT_CLOUDS_DIR = RESULTS_DIR / "pointclouds"
-    
-    # Crear directorios
-    for d in [CALIBRATION_DIR, LOGS_DIR, POINT_CLOUDS_DIR]:
-        d.mkdir(parents=True, exist_ok=True)
+    CALIBRATION_DIR.mkdir(parents=True, exist_ok=True)
     
     # Modelo YOLO
-    YOLO_MODEL_PATH = str(MODELS_DIR / "yolo" / "yolo26n.pt")
+    YOLO_MODEL_PATH = str(MODELS_DIR / "yolo" / "speedreye_best.pt")
     
     # ============================================
     # YOLO
@@ -40,31 +33,24 @@ class Config:
     }
 
     # ============================================
-    # Depth Estimator
+    # Calibración de cámara
     # ============================================
-    DEPTH_ENGINE = "midas"
-    MAX_DEPTH = 30.0
-    DEPTH_MAX_SIZE = 320
-
-    # ============================================
-    # Fusión
-    # ============================================
-    KNOWN_HEIGHT = 1.7
-    FOCAL_LENGTH = 700
+    FOCAL_LENGTH = 700.0
     CX = None
     CY = None
-    DISTANCE_SCALE_FACTOR = 0.85
 
     # ============================================
-    # Pseudo-LiDAR
+    # Distancia (NUEVO SISTEMA)
     # ============================================
-    PSEUDO_LIDAR_STRIDE = 5
-
-    # ============================================
-    # Fusión
-    # ============================================
-    FUSION_MARGIN = 15
-    GROUND_RATIO = 0.2
+    DISTANCE_METHOD = "direct"  # "direct", "geometry", "none"
+    DIRECT_DISTANCE_WEIGHTS = MODELS_DIR / "distance" / "direct_distance.pt"
+    GEOMETRY_DISTANCE_WEIGHTS = MODELS_DIR / "distance" / "geometry_guided.pt"
+    CLASS_HEIGHTS = {
+        0: 1.70,  # Peaton
+        1: 1.70,  # Ciclista con bicicleta
+    }
+    MIN_DISTANCE = 0.5
+    MAX_DISTANCE = 60.0
 
     # ============================================
     # Visualización
@@ -74,7 +60,6 @@ class Config:
     TEXT_THICKNESS = 1
     UI_TEXT_COLOR = (0, 255, 255)
     FONT = cv2.FONT_HERSHEY_SIMPLEX
-    HEATMAP_ALPHA = 0.4
 
     # ============================================
     # Métricas

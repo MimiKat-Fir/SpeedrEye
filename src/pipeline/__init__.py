@@ -1,11 +1,15 @@
-"""
-SpeedrEye Pipeline - Detección, profundidad, Pseudo-LiDAR y predicción
-"""
+"""SpeedrEye detection pipeline."""
 
 from .detector import Detector
-from .depth_estimators import get_depth_estimator
-from .smart_lidar import SmartLidarGenerator
-from .fusion import Fusion
+from .distance import build_distance_estimator
 from .visualizer import Visualizer
 from .config import Config
 from .calibration import CameraCalibrator
+
+__all__ = [
+    "Detector",
+    "build_distance_estimator",
+    "Visualizer",
+    "Config",
+    "CameraCalibrator",
+]
