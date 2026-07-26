@@ -39,6 +39,10 @@ TENSORBOARD_DIR = TENSORBOARD_ROOT / RUN_NAME
 TOTAL_EPOCHS = 100
 IMAGE_SIZE = 640
 LEARNING_RATE = 1e-3
+MIN_LEARNING_RATE = 1e-5
+SCHEDULER_PATIENCE = 4
+EARLY_STOPPING_PATIENCE = 12
+MIN_IMPROVEMENT_M = 0.02
 SEED = 42
 MAX_DISTANCE_M = 60.0
 TARGET_CLASSES = {"Pedestrian": 0, "Cyclist": 1}
@@ -234,6 +238,15 @@ def load_frame_features(frame_id):
 sample_features, _, _, _ = load_frame_features(train_frames[0])
 head = DistanceRegressionHead(feature_channels=sample_features.shape[1]).to(DEVICE)
 optimizer = torch.optim.AdamW(head.parameters(), lr=LEARNING_RATE)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    optimizer,
+    mode="min",
+    factor=0.5,
+    patience=SCHEDULER_PATIENCE,
+    threshold=MIN_IMPROVEMENT_M,
+    threshold_mode="abs",
+    min_lr=MIN_LEARNING_RATE,
+)
 loss_function = nn.SmoothL1Loss()
 detector_sha256 = sha256_file(DETECTOR_WEIGHTS)
 
@@ -248,6 +261,8 @@ head.load_state_dict(resume_checkpoint["head_state_dict"])
 legacy_best_epoch = 0
 if "optimizer_state_dict" in resume_checkpoint:
     optimizer.load_state_dict(resume_checkpoint["optimizer_state_dict"])
+    if "scheduler_state_dict" in resume_checkpoint:
+        scheduler.load_state_dict(resume_checkpoint["scheduler_state_dict"])
     start_epoch = int(resume_checkpoint["epoch"])
     resume_mode = "exact checkpoint"
 else:
@@ -264,6 +279,12 @@ best_mae = float(
     resume_checkpoint.get("best_mae", best_metrics.get("mae_m", float("inf")))
 )
 best_epoch = int(resume_checkpoint.get("best_epoch") or legacy_best_epoch)
+early_stopping_best_mae = float(
+    resume_checkpoint.get("early_stopping_best_mae", best_mae)
+)
+epochs_without_improvement = int(
+    resume_checkpoint.get("epochs_without_improvement", 0)
+)
 
 print(f"Resume: {resume_path}")
 print(f"Completed epochs: {start_epoch}")
@@ -314,9 +335,12 @@ def checkpoint_payload(metrics, epoch, include_optimizer):
         "epoch": epoch,
         "best_epoch": best_epoch,
         "best_mae": best_mae,
+        "early_stopping_best_mae": early_stopping_best_mae,
+        "epochs_without_improvement": epochs_without_improvement,
     }
     if include_optimizer:
         payload["optimizer_state_dict"] = optimizer.state_dict()
+        payload["scheduler_state_dict"] = scheduler.state_dict()
     return payload
 
 
@@ -327,9 +351,14 @@ writer.add_text("configuration/resume_mode", resume_mode)
 
 last_train_metrics = {}
 last_val_metrics = best_metrics
+completed_epoch = start_epoch
+training_end_epoch = TOTAL_EPOCHS
+if epochs_without_improvement >= EARLY_STOPPING_PATIENCE:
+    print("The resume checkpoint had already reached the early-stopping condition.")
+    training_end_epoch = start_epoch
 
 try:
-    for epoch in range(start_epoch + 1, TOTAL_EPOCHS + 1):
+    for epoch in range(start_epoch + 1, training_end_epoch + 1):
         random.shuffle(train_frames)
         train_metrics = run_epoch(train_frames, training=True)
         with torch.no_grad():
@@ -344,22 +373,40 @@ try:
             writer.add_scalar(f"train/{name}", value, epoch)
         for name, value in val_metrics.items():
             writer.add_scalar(f"validation/{name}", value, epoch)
+        scheduler.step(val_metrics["mae_m"])
+        writer.add_scalar("train/learning_rate", optimizer.param_groups[0]["lr"], epoch)
         writer.flush()
 
-        if val_metrics["mae_m"] < best_mae:
+        is_best = val_metrics["mae_m"] < best_mae
+        if is_best:
             best_mae = val_metrics["mae_m"]
             best_epoch = epoch
+
+        if val_metrics["mae_m"] < early_stopping_best_mae - MIN_IMPROVEMENT_M:
+            early_stopping_best_mae = val_metrics["mae_m"]
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
+
+        if is_best:
             atomic_torch_save(
                 checkpoint_payload(val_metrics, epoch, include_optimizer=False),
                 BEST_WEIGHTS,
             )
-
         atomic_torch_save(
             checkpoint_payload(val_metrics, epoch, include_optimizer=True),
             LAST_WEIGHTS,
         )
         last_train_metrics = train_metrics
         last_val_metrics = val_metrics
+        completed_epoch = epoch
+
+        if epochs_without_improvement >= EARLY_STOPPING_PATIENCE:
+            print(
+                f"Early stopping at epoch {epoch}: no improvement of "
+                f"{MIN_IMPROVEMENT_M:.2f} m for {EARLY_STOPPING_PATIENCE} epochs."
+            )
+            break
 finally:
     writer.close()
 
@@ -367,7 +414,7 @@ if not BEST_WEIGHTS.exists():
     raise RuntimeError("Training finished without a deployable best checkpoint")
 
 best_checkpoint = load_torch_checkpoint(BEST_WEIGHTS)
-best_checkpoint["training_completed_epoch"] = max(start_epoch, TOTAL_EPOCHS)
+best_checkpoint["training_completed_epoch"] = completed_epoch
 best_checkpoint["best_epoch"] = best_epoch
 best_checkpoint["best_mae"] = best_mae
 atomic_torch_save(best_checkpoint, BEST_WEIGHTS)
@@ -375,7 +422,9 @@ atomic_torch_save(best_checkpoint, BEST_WEIGHTS)
 summary = {
     "run_name": RUN_NAME,
     "resume_from_epoch": start_epoch,
-    "training_completed_epoch": max(start_epoch, TOTAL_EPOCHS),
+    "training_completed_epoch": completed_epoch,
+    "maximum_epochs": TOTAL_EPOCHS,
+    "stopped_early": completed_epoch < TOTAL_EPOCHS,
     "best_epoch": best_epoch,
     "best_validation_mae_m": best_mae,
     "detector_weights": DETECTOR_WEIGHTS.name,

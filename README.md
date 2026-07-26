@@ -37,8 +37,10 @@ For the simplest setup, open it directly in Colab:
 
 [Open the direct-distance notebook in Google Colab](https://colab.research.google.com/github/MimiKat-Fir/SpeedrEye/blob/feature/direct-geometry-distance/notebooks/train_direct_distance.ipynb)
 
-The notebook trains through 100 total epochs and resumes from the latest available
-checkpoint. The published Colab run completed epoch 20.
+The notebook trains for at most 100 total epochs and resumes from the latest available
+checkpoint. The published Colab run completed epoch 20. A validation scheduler reduces
+the learning rate when progress stalls, and early stopping ends training after 12
+epochs without a significant improvement.
 
 The notebook:
 
@@ -79,7 +81,8 @@ python train_direct_distance_local.py
 
 KITTI stays under `data/kitti_raw/` for faster repeated training. The script downloads
 the core KITTI archives there only when the dataset is missing. It saves the best
-inference weights, an exact last-epoch checkpoint, metrics, and a new TensorBoard run.
+inference weights, an exact last-epoch checkpoint including optimizer and scheduler
+state, metrics, and a new TensorBoard run.
 
 ```bash
 tensorboard --logdir tensorboard/direct_distance
