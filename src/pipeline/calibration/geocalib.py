@@ -132,18 +132,11 @@ class CameraCalibrator:
     # ------------------------------------------------------------------
     # Horizonte / punto de fuga
     # ------------------------------------------------------------------
+    # src/pipeline/calibration/geocalib.py
+
     def _find_vanishing_point(self, frame, max_lines=40, min_angle_diff=0.15):
         """
         Detecta el punto de fuga dominante a partir de líneas de Hough.
-
-        Dos mejoras respecto a la versión anterior:
-        - Solo se consideran las `max_lines` líneas más largas (más
-          fiables, y acota el coste O(n²) de las intersecciones por pares
-          en vez de crecer con TODAS las líneas detectadas).
-        - Se descartan pares de líneas casi paralelas (`min_angle_diff` en
-          radianes): sus intersecciones son numéricamente inestables y son
-          la principal fuente de outliers que antes disparaban el
-          horizonte a valores absurdos.
         """
         h, w = frame.shape[:2]
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -153,7 +146,29 @@ class CameraCalibrator:
         if lines is None or len(lines) < 5:
             return None
 
-        segments = [line[0] for line in lines]
+        # 🔧 FIX: Extraer correctamente los segmentos de línea
+        segments = []
+        for line in lines:
+            try:
+                # Formato 1: line es un array de 4 elementos
+                if isinstance(line, np.ndarray) and line.shape == (4,):
+                    segments.append(line)
+                # Formato 2: line es un array de (1, 4)
+                elif isinstance(line, np.ndarray) and line.shape == (1, 4):
+                    segments.append(line[0])
+                # Formato 3: line es una lista o tupla
+                elif isinstance(line, (list, tuple)) and len(line) >= 4:
+                    segments.append(np.array(line[:4]))
+                else:
+                    # Si no se puede extraer, intentar con el primer elemento
+                    segments.append(line[0])
+            except (IndexError, TypeError):
+                continue
+
+        if len(segments) < 5:
+            return None
+
+        # Ordenar por longitud (más largas primero)
         segments.sort(key=lambda s: np.hypot(s[2] - s[0], s[3] - s[1]), reverse=True)
         segments = segments[:max_lines]
 
@@ -166,7 +181,7 @@ class CameraCalibrator:
                 angle_j = np.arctan2(y4 - y3, x4 - x3)
 
                 if abs(np.sin(angle_i - angle_j)) < min_angle_diff:
-                    continue  # casi paralelas, se descarta el par
+                    continue
 
                 denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
                 if abs(denom) < 1e-6:
