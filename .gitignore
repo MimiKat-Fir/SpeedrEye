@@ -24,7 +24,7 @@ data/test/
 
 # Resultados (generados)
 results/*
-
+data/*
 
 # IDE
 .vscode/
@@ -46,10 +46,5 @@ backup/
 # Archivos temporales
 *.tmp
 *.temp
-<<<<<<< HEAD
 *export*
 *project*
-=======
-
-*export*
->>>>>>> sistema_prediccion

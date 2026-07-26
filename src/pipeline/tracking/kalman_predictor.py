@@ -3,13 +3,21 @@ from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
 from collections import deque
 
+
 class KalmanPredictor:
-    def __init__(self, fps=30.0, history_size=12):
+    def __init__(self, fps=30.0, history_size=8,
+                 direction_smoothing=0.35, min_speed_threshold=0.15):
+        """
+        direction_smoothing: peso del EMA para suavizar la dirección (0-1, más alto = reacciona más rápido)
+        min_speed_threshold: velocidad mínima (m/s) para considerar que el objeto se está moviendo
+        """
         self.dt = 1.0 / fps if fps > 0 else 1.0 / 30.0
+        self.direction_smoothing = direction_smoothing
+        self.min_speed_threshold = min_speed_threshold
+        self.direction = None  # vector unitario (x, z) suavizado
 
         self.kf = KalmanFilter(dim_x=4, dim_z=2)
 
-        # Matriz de transición de estado (F)
         self.kf.F = np.array([
             [1, 0, self.dt, 0],
             [0, 1, 0,  self.dt],
@@ -17,7 +25,6 @@ class KalmanPredictor:
             [0, 0, 0,  1]
         ], dtype=float)
 
-        # Matriz de medición (H)
         self.kf.H = np.array([
             [1, 0, 0, 0],
             [0, 1, 0, 0]
@@ -32,86 +39,79 @@ class KalmanPredictor:
             [np.zeros((2, 2)), q_x]
         ])
 
-        # =====================================================================
-        # HISTÓRICO DE POSICIONES (BUFFER HISTÓRICO DE N FRAMES)
-        # =====================================================================
-        # Deque guarda las últimas N posiciones (x_meters, z_meters)
         self.history = deque(maxlen=history_size)
 
     def update(self, x_meters, z_meters):
-        """Guarda la posición en el historial y actualiza el estado de Kalman"""
+        """Actualiza el filtro con una nueva medición (posición en metros)."""
         measurement = np.array([[x_meters], [z_meters]], dtype=float)
         self.kf.predict()
         self.kf.update(measurement)
+        self.history.append((self.kf.x[0, 0], self.kf.x[1, 0]))
 
-        # Guardamos la posición filtrada actual en el histórico
-        x_filtered = self.kf.x[0, 0]
-        z_filtered = self.kf.x[1, 0]
-        self.history.append((x_filtered, z_filtered))
-
-    def predict_path_pixels(self, seconds_ahead=1.2, steps=8, fx=800.0, cx=320.0, feet_x=0, feet_y=0, cy=240.0, bbox=None):
-        path = []
-
-        # ---------------------------------------------------------------------
-        # CÁLCULO DE VELOCIDAD BASADO EN EL HISTÓRICO DE MÁS DE N FRAMES
-        # ---------------------------------------------------------------------
-        # Si aún no tenemos suficientes frames para calcular la tendencia,
-        # usamos una velocidad por defecto (flecha corta hacia el frente)
-        if len(self.history) < 4:
-            dx_total = 0
-            dy_total = -30
+    def get_motion_state(self):
+        """Velocidad y dirección de movimiento, tal como las estima el propio Kalman."""
+        vx = self.kf.x[2, 0]
+        vz = self.kf.x[3, 0]
+        speed = float(np.hypot(vx, vz))
+        if speed > 1e-6:
+            direction = np.array([vx, vz]) / speed
         else:
-            # Comparamos la posición de HACE N FRAMES con la posición ACTUAL
-            x_old, z_old = self.history[0]
-            x_curr, z_curr = self.history[-1]
+            direction = np.array([0.0, 0.0])
+        return vx, vz, speed, direction
 
-            # Tiempo transcurrido en el histórico (en segundos)
-            time_elapsed = (len(self.history) - 1) * self.dt
+    def _smooth_direction(self, new_dir):
+        if self.direction is None:
+            self.direction = new_dir
+        else:
+            blended = (1 - self.direction_smoothing) * self.direction + self.direction_smoothing * new_dir
+            norm = np.linalg.norm(blended)
+            self.direction = blended / norm if norm > 1e-6 else self.direction
+        return self.direction
 
-            # Velocidad real calculada por tendencia física (m/s)
-            vx_trend = (x_curr - x_old) / time_elapsed
-            vz_trend = (z_curr - z_old) / time_elapsed
-
-            v_total = np.sqrt(vx_trend**2 + vz_trend**2)
-
-            # Si el desplazamiento promedio en los últimos frames es muy pequeño,
-            # está prácticamente parado o caminando en el sitio
-            if v_total < 0.15:
-                dx_total = 0
-                arrow_length = 30
-            else:
-                # Proyección de dirección lateral basada en la trayectoria real reciente
-                dir_x = np.clip(vx_trend / v_total, -1.0, 1.0)
-                arrow_length = int(np.clip(v_total * 25.0, 35, 65))
-                dx_total = int(dir_x * arrow_length)
-
-            dy_total = -arrow_length
-
-        # Generación de la línea de la flecha
-        for i in range(1, steps + 1):
-            factor = i / steps
-            px_x = int(feet_x + (dx_total * factor))
-            px_y = int(feet_y + (dy_total * factor * 0.35))
-            path.append((px_x, px_y))
-
-        return path
-    
-
-    
-    def predict_path_pixels_pose(self, feet_x, feet_y, body_dx, body_dy, steps=8, arrow_length=45):
+    def predict_path_pixels(self, fx, center_x, center_y, steps=6,
+                             body_orientation=None, pose_weight=0.4,
+                             seconds_ahead=1.0):
         """
-        Proyecta la flecha siguiendo exactamente la orientación del torso/hombros.
+        Predicción unificada de trayectoria futura, devuelta en píxeles.
+
+        Fusiona la tendencia de movimiento (Kalman) con la orientación corporal
+        (pose), cuando está disponible. Devuelve None si no hay histórico
+        suficiente o si el objeto está prácticamente quieto (evita dibujar y
+        evaluar alertas sobre objetos estáticos).
         """
+        if len(self.history) < 3:
+            return None
+
+        vx, vz, speed, motion_dir = self.get_motion_state()
+
+        if speed < self.min_speed_threshold:
+            self.direction = None  # reset: al retomar movimiento no arrastra dirección vieja
+            return None
+
+        if body_orientation is not None:
+            bx, by = body_orientation
+            # body_orientation viene en coords de imagen (dx: derecha, dy: hacia arriba)
+            body_vec = np.array([bx, -by])
+            norm = np.linalg.norm(body_vec)
+            if norm > 1e-6:
+                body_vec = body_vec / norm
+                fused = (1 - pose_weight) * motion_dir + pose_weight * body_vec
+                fused_norm = np.linalg.norm(fused)
+                if fused_norm > 1e-6:
+                    motion_dir = fused / fused_norm
+
+        direction = self._smooth_direction(motion_dir)
+        z_ref = max(self.history[-1][1], 0.5)  # distancia actual, evita división por 0
+
         path = []
-
-        # body_dx define la inclinación lateral real del cuerpo (-1.0 izquierda, 1.0 derecha)
-        dx_total = int(body_dx * arrow_length)
-        dy_total = int(body_dy * arrow_length * 0.35) # Aplanado para perspectiva de suelo
-
         for i in range(1, steps + 1):
-            factor = i / steps
-            px_x = int(feet_x + (dx_total * factor))
-            px_y = int(feet_y + (dy_total * factor))
+            t = seconds_ahead * (i / steps)
+            dx_m = direction[0] * speed * t
+            dz_m = direction[1] * speed * t
+            # Proyección pinhole para el desplazamiento lateral
+            px_x = int(center_x + (dx_m * fx) / z_ref)
+            # Aproximación vertical (acercarse/alejarse desplaza el punto en pantalla)
+            px_y = int(center_y - (dz_m * fx) / z_ref * 0.15)
             path.append((px_x, px_y))
 
         return path

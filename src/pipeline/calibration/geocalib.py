@@ -248,11 +248,13 @@ class CameraCalibrator:
                 vp_median = np.median(self.vanishing_buffer, axis=0)
                 horizon_median = np.median(self.horizon_buffer)
                 
+                max_jump = h * self.config.HORIZON_MAX_JUMP_RATIO
                 if self.vanishing_point is not None:
                     old_vp = self.vanishing_point
                     change = np.sqrt((vp_median[0] - old_vp[0])**2 + (vp_median[1] - old_vp[1])**2)
-                    if change > h * 0.05:
-                        print(f"   🔄 Cambio horizonte: y={self.horizon_line:.0f}→{horizon_median:.0f}")
+                    if change > max_jump:
+                        # Salto implausible: probablemente ruido de Hough, se descarta
+                        return
                 
                 self.vanishing_point = vp_median
                 self.horizon_line = horizon_median
