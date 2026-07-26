@@ -239,7 +239,7 @@ def main():
         p.requires_grad_(False)
     detector.model.eval()
 
-    capture = BackboneFeatureCapture(detector.model.model)
+    capture = BackboneFeatureCapture(detector.model)
 
     # Averigua el nº de canales del feature map con una pasada dummy.
     dummy = np.zeros((384, 1280, 3), dtype=np.uint8)
