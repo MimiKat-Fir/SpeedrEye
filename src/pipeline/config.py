@@ -17,7 +17,7 @@ class Config:
     CALIBRATION_DIR.mkdir(parents=True, exist_ok=True)
     
     # Modelo YOLO
-    YOLO_MODEL_PATH = str(MODELS_DIR / "yolo" / "speedreye_kitti_v2.pt")
+    YOLO_MODEL_PATH = str(MODELS_DIR / "yolo" / "speedreye_kitti_v3.pt")
     
     # ============================================
     # YOLO
@@ -49,7 +49,7 @@ class Config:
     # ============================================
     DISTANCE_METHOD = "geometry"
     DIRECT_DISTANCE_WEIGHTS = MODELS_DIR / "distance" / "direct_distance.pt"
-    GEOMETRY_DISTANCE_WEIGHTS = MODELS_DIR / "distance" / "geometry_guided_v1.pt"
+    GEOMETRY_DISTANCE_WEIGHTS = MODELS_DIR / "distance" / "geometry_guided_v2.pt"
     CLASS_HEIGHTS = {
         0: 1.70,
         1: 1.70,
